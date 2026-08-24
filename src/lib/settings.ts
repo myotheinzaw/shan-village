@@ -32,6 +32,12 @@ export const SETTING_DEFAULTS = {
     'Subject to company policy, eligibility verification and final management approval.',
   cash_advance_policy_text:
     'I acknowledge that this advance is subject to company policy, management approval, and the repayment arrangement recorded above.',
+  wastage_drive_folder_id: '',
+  wastage_drive_subfolder: 'Daily Wastage Reports',
+  wastage_auto_export: true,
+  wastage_photos_to_drive: true,
+  wastage_require_photo: false,
+  wastage_require_reason: false,
 } as const
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS

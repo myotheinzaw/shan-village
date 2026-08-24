@@ -378,3 +378,129 @@ export interface ImportRecord {
   matched_outlet_id: string | null
   is_included: boolean
 }
+
+/* -------------------------------------------------------------------------- */
+/* Wastage module                                                             */
+/* -------------------------------------------------------------------------- */
+
+export type WastageStatus = 'SUBMITTED' | 'CONFIRMED' | 'REJECTED'
+export type WastageSource = 'PUBLIC_LINK' | 'STAFF_APP' | 'MANAGEMENT'
+export type WastageExportStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'SKIPPED'
+export type WastageExportTrigger = 'MANUAL' | 'AUTO' | 'CRON'
+
+export interface WastageReason {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  is_active: boolean
+  sort_order: number
+}
+
+export interface WastageLink {
+  id: string
+  token: string
+  label: string
+  outlet_id: string | null
+  is_active: boolean
+  expires_at: string | null
+  require_name: boolean
+  show_staff_list: boolean
+  hourly_limit: number
+  submission_count: number
+  last_used_at: string | null
+  created_at: string
+  created_by: string | null
+}
+
+export interface WastageEntry {
+  id: string
+  reference: string | null
+  entry_date: string
+  entry_time: string
+  outlet_id: string | null
+  reported_by_name: string
+  employee_id: string | null
+  item_name: string
+  quantity: number | null
+  unit: string | null
+  reason_id: string | null
+  /** Null for a reader without wastage.cost_view — the value is masked on load. */
+  estimated_value: number | null
+  currency: string
+  note: string
+  photo_path: string | null
+  photo_mime: string | null
+  photo_size: number | null
+  drive_photo_id: string | null
+  drive_photo_url: string | null
+  status: WastageStatus
+  source: WastageSource
+  link_id: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string
+  exported_at: string | null
+  created_at: string
+}
+
+export interface WastageExport {
+  id: string
+  report_date: string
+  status: WastageExportStatus
+  trigger: WastageExportTrigger
+  entry_count: number
+  total_value: number
+  file_name: string | null
+  drive_file_id: string | null
+  drive_url: string | null
+  error: string | null
+  created_at: string
+  created_by: string | null
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roster sharing                                                             */
+/* -------------------------------------------------------------------------- */
+
+export interface RosterLink {
+  id: string
+  token: string
+  label: string
+  outlet_id: string | null
+  is_active: boolean
+  expires_at: string | null
+  weeks_back: number
+  weeks_ahead: number
+  show_hours: boolean
+  show_notes: boolean
+  require_code: boolean
+  view_count: number
+  last_viewed_at: string | null
+  created_at: string
+  created_by: string | null
+}
+
+/**
+ * One row of the public roster view. Deliberately not a RosterAssignment: it
+ * carries display names rather than ids, and it has no leave type, no employee
+ * code and no contact details, because it is served to anyone holding the link.
+ */
+export interface RosterShareRow {
+  work_date: string
+  employee_id: string
+  employee_name: string
+  position_name: string
+  outlet_name: string
+  status: AssignmentStatus
+  start_time: string | null
+  end_time: string | null
+  crosses_midnight: boolean
+  is_split: boolean
+  segment2_start: string | null
+  segment2_end: string | null
+  /** Null unless the link has show_hours switched on. */
+  scheduled_hours: number | null
+  /** Empty unless the link has show_notes switched on. */
+  note: string
+}

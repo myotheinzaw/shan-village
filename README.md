@@ -1,9 +1,10 @@
 # Shan Village — Operations Management System
 
 Restaurant operations platform for Shan Village. **Phase 1 delivers Staff & Duty
-Roster Management**; the architecture is prepared for later modules (wastage,
-inventory, purchasing, suppliers, costing, daily operations, maintenance, sales)
-but none of them are built, and none of them appear anywhere in the application.
+Roster Management** and **Phase 2 delivers Wastage**; the architecture is
+prepared for the later modules (inventory, purchasing, suppliers, costing, daily
+operations, maintenance, sales) but none of those are built, and none of them
+appear anywhere in the application.
 
 Read [`PROJECT_PLAN.md`](PROJECT_PLAN.md) first — it records what the existing
 Excel roster actually contains, the database design, the permission model and
@@ -29,6 +30,46 @@ the RLS strategy.
 **Staff** — a four-tab phone app: `Home · Roster · Requests · Profile`. Today's
 duty, tomorrow's, next OFF day, this week's totals, announcements, and their own
 requests. Nothing else exists for them, in the UI or in the database.
+
+## What Phase 2 does
+
+**Wastage** — staff report what they throw away from a phone, in about fifteen
+seconds, with no login.
+
+- A public link per outlet (`/w/<token>`), printed as a QR code and stuck by the
+  bin. Camera button, note, reason, quantity, optional value; the date defaults
+  to today and the time to now, both taken from the restaurant's clock rather
+  than the phone's.
+- Staff **pick their name from the list or type it**. Picking stores the
+  employee's own spelling and links the entry to their record.
+- Photos are downscaled in the browser and stored in a private bucket.
+- Management gets a daily log with the photo, review (confirm / reject) and
+  per-day totals.
+- **The day's workbook is published to Google Drive automatically** — one file
+  per day, rewritten in place, with the photos in a `Photos/<date>` sub-folder
+  beside it and a hyperlink from each spreadsheet row to its picture.
+
+Tokens are revocable and rate-limited, and `wastage.cost_view` gates the money
+exactly as `finance.view` does. Setup and the security model are in
+[`docs/WASTAGE.md`](docs/WASTAGE.md).
+
+## Shared links
+
+Two things can be handed out without a login, both as a tokenised address you
+print as a QR code:
+
+| Link | Who opens it | What it does |
+|---|---|---|
+| `/w/<token>` | anyone by the bin | files one wastage entry |
+| `/r/<token>` | anyone with the access code | reads the published duty roster |
+
+The roster link is locked with a short code — Owner, Admin and Chef — and the
+role decides one thing: Owner and Admin read the **Change Log**, Chef does not.
+Codes are bcrypt-hashed, rate-limited, changeable from the app, and a correct
+one buys a 12-hour session on that phone. The link is read-only: no draft
+roster, no leave *types*, no week outside the allowed window, and nothing that
+can change a roster — editing stays behind a real login so every change keeps a
+named person in the audit trail. See [`docs/ROSTER-LINK.md`](docs/ROSTER-LINK.md).
 
 ## Shift handling
 
@@ -76,9 +117,13 @@ npm run db:test    # applies the real migrations to PostgreSQL and tests RLS
 `npm run db:test` needs a local PostgreSQL 16. It rebuilds a scratch database
 from `supabase/migrations`, adds a small shim that reproduces Supabase's `auth`
 schema and its `anon` / `authenticated` / `service_role` roles, then runs
-`scripts/test-rls.sql` — 117 assertions covering permission resolution, the
+`scripts/test-rls.sql` — 213 assertions covering permission resolution, the
 draft/published boundary, financial separation, privilege-escalation attempts,
-the append-only audit trail, roster locking and the request workflow.
+the append-only audit trail, roster locking, the request workflow, and the
+public links — revoked, expired and unknown tokens, the wastage hourly ceiling,
+back-dating, the staff-name picker, and for the shared roster the access-code
+lock, its brute-force ceiling, session binding, the draft roster staying
+invisible, and the Change Log being refused to the Chef code.
 
 ## Security model, in one paragraph
 
@@ -90,9 +135,13 @@ are invisible to staff at the row level. The two financial request tables are
 gated by `finance.view` / `finance.approve`, which the Roster Manager role does
 not hold — so a manager who reviews shift swaps cannot see anyone's salary
 advance. `audit_logs` has no UPDATE or DELETE policy for any role, and a trigger
-refuses both even on a direct connection. The service-role key is used in
-exactly one file, only for Supabase Auth admin calls, and `server-only` makes
-importing it into a client component a build error.
+refuses both even on a direct connection. The public wastage form is the single
+unauthenticated write: `anon` holds no table privileges at all and reaches three
+`SECURITY DEFINER` functions that check the link token themselves. The
+service-role key appears in three files — Supabase Auth admin calls, private
+photo storage, and the scheduled Drive publish that has no user behind it —
+each documented at the point of use, and `server-only` makes importing any of
+them into a client component a build error.
 
 ## Repository layout
 
@@ -102,10 +151,14 @@ supabase/migrations/       schema, functions, RLS policies, reference data
 supabase/seed.sql          development demo data (no accounts, no passwords)
 scripts/                   admin setup, local DB reset, SQL security tests
 src/lib/roster/            shift parsing, hours, dates, validation, coverage
+src/lib/wastage/           submission contract, the daily report and workbook
+src/lib/google/            the small Drive client behind the daily publish
 src/lib/excel/             the duty-roster spreadsheet importer
 src/lib/auth/              session, permissions and the server-action guards
 src/app/(management)/      management application
 src/app/staff/             the staff phone app
+src/app/w/[token]/         the public wastage form — no login, no app shell
+src/app/r/[token]/         the shared duty roster, behind an access code
 docs/samples/              the source spreadsheet, used as a test fixture
 ```
 
@@ -119,5 +172,17 @@ docs/samples/              the source spreadsheet, used as a test fixture
   publish* in Settings to grant it; turning it off removes the grant again.
 - **The advance leave notice is 90 days and warns only.** It blocks submission
   only if you switch on *Short notice blocks leave*.
-- Request attachments are captured as links, not uploaded files. Supabase
-  Storage would be the natural next step if the restaurant wants uploads.
+- Request attachments are captured as links, not uploaded files. Wastage photos
+  now prove out Supabase Storage, so moving request attachments onto the same
+  private-bucket pattern is a small job.
+- **Wastage works without Google Drive.** Entries, photos, review and the
+  Download Excel button all function; only the automatic Drive copy is skipped,
+  and the Wastage screen says so. Connect it with the walkthrough in
+  [`docs/WASTAGE.md`](docs/WASTAGE.md).
+- **A printed wastage QR code is a door key.** Anyone holding the address can
+  file an entry. Give each outlet its own link so one leak is revoked alone,
+  and use *New address* when a printed card goes missing.
+- **Change the three roster access codes before you rely on them.** They are
+  seeded by a migration in this repository, so anyone who can read the repo can
+  read them. Roster Links → Access codes → Change code rehashes a new one in the
+  database and touches no file.

@@ -40,6 +40,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Employees', href: '/employees', permissions: ['staff.view'] },
       { label: 'Positions', href: '/positions', permissions: ['positions.manage'] },
       { label: 'Outlets', href: '/outlets', permissions: ['outlets.manage'] },
+      { label: 'Roster Links', href: '/roster/links', permissions: ['roster.share'] },
     ],
   },
   {
@@ -53,6 +54,15 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: ['requests.review', 'requests.approve', 'leave.approve', 'finance.approve'],
       },
       { label: 'Leave Calendar', href: '/leave', permissions: ['requests.view_all', 'leave.approve'] },
+    ],
+  },
+  {
+    label: 'Wastage',
+    icon: 'trash-2',
+    items: [
+      { label: 'Daily Wastage', href: '/wastage', permissions: ['wastage.view'], module: 'wastage', exact: true },
+      { label: 'Submission Links', href: '/wastage/links', permissions: ['wastage.manage'], module: 'wastage' },
+      { label: 'Wastage Reasons', href: '/wastage/reasons', permissions: ['wastage.manage'], module: 'wastage' },
     ],
   },
   {
