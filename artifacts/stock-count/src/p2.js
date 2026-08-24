@@ -15,6 +15,7 @@
 
 var S = JSON.parse(document.getElementById('state').textContent);
 var api=null, dl=null, apiReady=false;
+var ROLES=['owner','admin','chef'];
 var role=null, readOnly=true, dirty=false, publishing=false, pending=[];
 var idleTimer=0;
 var tab='stock', view='cards';
@@ -204,7 +205,7 @@ LOGO,
   '<button type="button" role="tab" id="tab-stock">Stock</button>',
   '<button type="button" role="tab" id="tab-overview">Overview</button>',
   '<button type="button" role="tab" id="tab-export">Excel &amp; photos</button>',
-  '<button type="button" role="tab" id="tab-setup" class="admin-only">Setup</button>',
+  '<button type="button" role="tab" id="tab-setup" class="office-only">Setup</button>',
 '</nav>',
 
 '<main>',
@@ -271,7 +272,7 @@ LOGO,
 /* ---- setup ---- */
 '<section class="panel stack" id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" hidden>',
   '<div class="card card-pad stack">',
-    '<div><h2 class="sec">Lock codes</h2><p class="sec">Two codes. The counter code can add and edit stock. The admin code can also delete, change these lists, and see the log.</p></div>',
+    '<div><h2 class="sec">Lock codes</h2><p class="sec">The same three codes as the duty roster. Chef can count stock. Owner and Admin can also delete items, change these lists and the Drive links, and read the change log.</p></div>',
     '<div class="row"><button type="button" class="btn" id="setCodes">Change lock codes</button></div>',
   '</div>',
   '<div class="card card-pad stack" id="drivesCard"></div>',

@@ -4,7 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const DIR = require('os').tmpdir();            // scratch for generated files
-const PAGE = path.join(__dirname, '..', 'stock-count.html');
+const { makeTestPage, TEST_CODES } = require('./helpers');
+
+const PAGE = makeTestPage(
+  path.join(__dirname, '..', 'stock-count.html'),
+  path.join(require('os').tmpdir(), 'stock-count-testlocks-photo.html')
+);
 
 (async () => {
   const exe = fs.readdirSync('/opt/pw-browsers').find(d => d.startsWith('chromium-'));
@@ -20,6 +25,11 @@ const PAGE = path.join(__dirname, '..', 'stock-count.html');
   };
 
   await page.goto('file://' + PAGE);
+  await page.waitForTimeout(400);
+  await page.click('#lockBtn');
+  await page.waitForTimeout(250);
+  await page.fill('#lkCode', TEST_CODES.owner);
+  await page.click('#lkGo');
   await page.waitForTimeout(400);
 
   // A believable "camera" JPEG: 2400x1800, well over the 1000px cap.
@@ -43,6 +53,7 @@ const PAGE = path.join(__dirname, '..', 'stock-count.html');
   await page.fill('#iName', 'Dried chilli whole');
   await page.fill('#iQty', '5');
   await page.click('#iLocSeg .segb[data-loc="Al Ghurair Store"]');
+  await page.selectOption('#iBy', 'Win Paing');
   await page.setInputFiles('#iPhoto', jpgPath);
   await page.waitForTimeout(700);
 
@@ -138,10 +149,19 @@ const PAGE = path.join(__dirname, '..', 'stock-count.html');
   await step('rebuilt page carries the photo', async () => {
     if (!(await page2.locator('#stockList .icard img.thumb').count())) throw new Error('thumb lost in rebuild');
   });
-  await step('rebuilt page starts read-only (no session role)', async () => {
-    // locks were never set in this run, so it opens as admin — assert the inverse:
+  await step('rebuilt page opens locked in a fresh browser', async () => {
     const locked = await page2.evaluate(() => document.body.classList.contains('readonly'));
-    if (locked) throw new Error('unexpectedly read-only with no locks set');
+    if (!locked) throw new Error('a fresh viewer got edit rights without a code');
+    if (await page2.locator('#fabAdd').isVisible()) throw new Error('add button visible to a locked viewer');
+  });
+  await step('rebuilt page still accepts the codes', async () => {
+    await page2.click('#lockBtn');
+    await page2.waitForTimeout(250);
+    await page2.fill('#lkCode', TEST_CODES.chef);
+    await page2.click('#lkGo');
+    await page2.waitForTimeout(400);
+    const btn = await page2.locator('#lockBtn').innerText();
+    if (!/Chef/.test(btn)) throw new Error('chef code did not survive the rebuild: ' + btn);
   });
 
   console.log('--- phone layout ---');

@@ -64,7 +64,7 @@ function openForm(id){
 
   var d=sheet('formSheet',
   '<div class="sheet-head"><div><h3>'+(isNew?'New item':'Edit item')+'</h3>'+
-    '<div class="who">'+(isNew?'Fill the top five boxes and save. The rest is optional.':esc(editing))+'</div></div>'+
+    '<div class="who">'+(isNew?'Fill in what has a <span class="req">*</span> and save. The rest is optional.':esc(editing))+'</div></div>'+
     '<button type="button" class="x" id="fX" aria-label="Close">&times;</button></div>'+
   '<div class="sheet-body">'+
     '<div><label class="lbl" for="iName">Item name <span class="req">*</span></label>'+
@@ -78,6 +78,20 @@ function openForm(id){
       '<div class="seg" id="iLocSeg">'+(S.locations||[]).map(function(L){
         return '<button type="button" class="segb" data-loc="'+esc(L)+'" aria-pressed="'+(L===it.loc?'true':'false')+'">'+esc(L)+'</button>';
       }).join('')+'</div></div>'+
+
+    /* Pick your name off the list, or type it if you are not on it yet —
+       a new name joins the list for whoever counts next. */
+    '<div><label class="lbl" for="iBy">Inventory done by <span class="req">*</span></label>'+
+      '<select class="f" id="iBy">'+
+        '<option value="">— choose your name —</option>'+
+        (S.staff||[]).map(function(n){
+          return '<option value="'+esc(n)+'"'+(n===it.by?' selected':'')+'>'+esc(n)+'</option>';
+        }).join('')+
+        '<option value="__other"'+(it.by&&(S.staff||[]).indexOf(it.by)<0?' selected':'')+'>+ Someone else</option>'+
+      '</select>'+
+      '<input class="f" id="iByOther" placeholder="Type the name" autocomplete="off" style="margin-top:8px" value="'+
+        (it.by&&(S.staff||[]).indexOf(it.by)<0?esc(it.by):'')+'"'+
+        (it.by&&(S.staff||[]).indexOf(it.by)<0?'':' hidden')+'></div>'+
 
     '<div class="fgrid">'+
       '<div><label class="lbl" for="iExp">Expiry date</label><input class="f" id="iExp" type="date" value="'+esc(it.expiry)+'"></div>'+
@@ -97,10 +111,9 @@ function openForm(id){
         '<div class="faint" style="font-size:11.5px">Shrunk before saving so the page stays quick. Save the originals to Drive from the Excel &amp; photos tab.</div>'+
       '</div></div></div>'+
 
-    '<details class="more"'+(it.batch||it.supplier||it.cost||it.par||it.sub||it.storage||it.by?' open':'')+'>'+
+    '<details class="more"'+(it.batch||it.supplier||it.cost!==''&&it.cost!=null||it.par!==''&&it.par!=null||it.sub||it.storage?' open':'')+'>'+
       '<summary>More details</summary>'+
       '<div class="fgrid">'+
-        '<div><label class="lbl" for="iBy">Counted by</label><input class="f" id="iBy" placeholder="Your name" value="'+esc(it.by)+'" autocomplete="off"></div>'+
         '<div><label class="lbl" for="iSub">Shelf / rack</label><input class="f" id="iSub" placeholder="e.g. Chiller 2, shelf B" value="'+esc(it.sub)+'" autocomplete="off"></div>'+
         '<div><label class="lbl" for="iStore">Stored at</label><select class="f" id="iStore">'+opts(STORAGE,it.storage,'— choose —')+'</select></div>'+
         '<div><label class="lbl" for="iBatch">Batch / lot no.</label><input class="f" id="iBatch" value="'+esc(it.batch)+'" autocomplete="off"></div>'+
@@ -113,7 +126,7 @@ function openForm(id){
     '<div id="fErr"></div>'+
   '</div>'+
   '<div class="sheet-foot">'+
-    (isNew?'':'<button type="button" class="btn danger admin-only" id="fDel">Delete item</button>')+
+    (isNew?'':'<button type="button" class="btn danger office-only" id="fDel">Delete item</button>')+
     '<div class="spacer"></div>'+
     '<button type="button" class="btn" id="fCancel">Cancel</button>'+
     (isNew?'<button type="button" class="btn" id="fSaveNext">Save &amp; add another</button>':'')+
@@ -141,6 +154,12 @@ function openForm(id){
       b.setAttribute('aria-pressed','true');
     };
   });
+
+  $('iBy').onchange=function(){
+    var other=this.value==='__other';
+    $('iByOther').hidden=!other;
+    if(other)setTimeout(function(){try{$('iByOther').focus()}catch(e){}},40);
+  };
 
   $('phTake').onclick=function(){$('iPhoto').click()};
   $('phDel').onclick=function(){draftPhoto=null;paintPhoto()};
@@ -172,7 +191,9 @@ function lastLoc(){
   var a=items(); return a.length?a[a.length-1].loc:(S.locations||[])[0];
 }
 function lastBy(){
-  try{return localStorage.getItem('sv-inv-by')||''}catch(e){return ''}
+  var v='';
+  try{ v=localStorage.getItem('sv-inv-by')||'' }catch(e){}
+  return v;
 }
 
 function saveForm(){
@@ -181,10 +202,13 @@ function saveForm(){
   var locBtn=document.querySelector('#iLocSeg .segb[aria-pressed="true"]');
   var loc=locBtn?locBtn.getAttribute('data-loc'):'';
   var invDate=$('iInv').value;
+  var by=$('iBy').value;
+  if(by==='__other')by=$('iByOther').value.trim();
   var problems=[];
   if(!name)problems.push('the item name');
   if(qty===''||num(qty)<0)problems.push('a quantity');
   if(!loc)problems.push('a location');
+  if(!by)problems.push('who did the count');
   if(!invDate)problems.push('the count date');
   if(problems.length){
     $('fErr').innerHTML='<div class="note bad">Still needed: '+esc(problems.join(', '))+'.</div>';
@@ -199,7 +223,8 @@ function saveForm(){
   it.name=name; it.qty=num(qty); it.unit=$('iUnit').value; it.loc=loc;
   it.cat=$('iCat').value; it.cond=$('iCond').value; it.expiry=$('iExp').value;
   it.invDate=invDate; it.remark=$('iRem').value.trim();
-  it.by=$('iBy').value.trim(); it.sub=$('iSub').value.trim(); it.storage=$('iStore').value;
+  it.by=by; it.sub=$('iSub').value.trim(); it.storage=$('iStore').value;
+  if((S.staff||[]).indexOf(by)<0){ S.staff=(S.staff||[]).concat([by]); pending.push('Added '+by+' to the staff list') }
   it.batch=$('iBatch').value.trim(); it.supplier=$('iSup').value.trim();
   it.cost=$('iCost').value===''?'':num($('iCost').value);
   it.par=$('iPar').value===''?'':num($('iPar').value);

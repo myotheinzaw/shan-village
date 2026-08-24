@@ -62,8 +62,8 @@ nav.tabs{display:flex;gap:2px;background:var(--surface-sunken);border-bottom:1px
 nav.tabs button{appearance:none;background:none;border:none;border-bottom:3px solid transparent;color:var(--text-muted);font-size:13.5px;font-weight:600;padding:12px 15px 10px;cursor:pointer;white-space:nowrap;font-family:var(--font-body)}
 nav.tabs button:hover{color:var(--text)}
 nav.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
-nav.tabs button.admin-only{display:none}
-body.is-admin nav.tabs button.admin-only{display:block}
+nav.tabs button.office-only{display:none}
+body.is-office nav.tabs button.office-only{display:block}
 
 main{padding:18px 20px 92px;max-width:1500px;margin:0 auto}
 .panel[hidden]{display:none}
@@ -211,8 +211,8 @@ details.more .fgrid{margin-top:12px}
 .ro-only{display:none}
 body.readonly .ro-only{display:block}
 body.readonly .editor-only{display:none!important}
-.admin-only{display:none}
-body.is-admin .admin-only{display:revert}
+.office-only{display:none}
+body.is-office .office-only{display:revert}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--header-bg);color:var(--header-text);padding:10px 16px;border-radius:9px;font-size:13px;box-shadow:0 12px 30px -10px rgba(0,0,0,.5);z-index:99;max-width:calc(100vw - 24px);text-align:center}
 #toast[hidden]{display:none}
 
@@ -272,7 +272,7 @@ body[data-mode="dark"]{
 --critical:#9C2B1F;--critical-soft:#F7E1DA;--missing:#756B58;--missing-soft:#ECE5D5;
 }}
 </style></head><body><div id="root"></div>
-<script id="state" type="application/json">{"v": 1, "rev": 0, "pub": null, "seq": 0, "locks": null, "drive": "https://drive.google.com/drive/folders/1N-185axMNfrq49iXSlLTH1iF-mo15uRy?usp=sharing", "drivePhotos": "", "photoFolder": "Stock Count Photos", "locations": ["Al Ghurair Store", "Al Ghurair Kitchen", "Home Al Quoz"], "categories": ["Rice & Noodles", "Dry Goods", "Spices & Masala", "Sauces & Oils", "Vegetables", "Fruits", "Meat & Poultry", "Seafood", "Dairy & Eggs", "Frozen", "Beverages", "Bakery", "Packaging & Disposables", "Cleaning & Chemicals", "Equipment & Utensils", "Other"], "units": ["kg", "g", "L", "ml", "pcs", "pack", "box", "carton", "bag", "bottle", "can", "tray", "tin", "bundle", "dozen"], "items": [], "photos": {}, "log": []}</script>
+<script id="state" type="application/json">{"v": 1, "rev": 0, "pub": null, "seq": 0, "locks": {"owner": {"salt": "bc69ec96b0f04feb", "hash": "9fa927b9d4cd8d066c4e9b0275e3b709de889cd9f245119613f11940f874727f"}, "admin": {"salt": "3fb72138ef198064", "hash": "cb73a503db92459dddebe27702afbac47ac5cd73fac68eb72c6f59921292d15e"}, "chef": {"salt": "3714cd325fe6fc22", "hash": "5fc59c7b661583778bbf49c7d728b647c78a603177393ca928048231c5cc9583"}}, "drive": "https://drive.google.com/drive/folders/1N-185axMNfrq49iXSlLTH1iF-mo15uRy?usp=sharing", "drivePhotos": "", "photoFolder": "Stock Count Photos", "locations": ["Al Ghurair Store", "Al Ghurair Kitchen", "Home Al Quoz"], "categories": ["Rice & Noodles", "Dry Goods", "Spices & Masala", "Sauces & Oils", "Vegetables", "Fruits", "Meat & Poultry", "Seafood", "Dairy & Eggs", "Frozen", "Beverages", "Bakery", "Packaging & Disposables", "Cleaning & Chemicals", "Equipment & Utensils", "Other"], "units": ["kg", "g", "L", "ml", "pcs", "pack", "box", "carton", "bag", "bottle", "can", "tray", "tin", "bundle", "dozen"], "staff": ["Hla Kyawt Khing", "Phyu Sin Maung", "Win Paing", "Thiha Naing Soe", "Kaung Htet Zaw", "Nay Lin Htet", "Mariam"], "items": [], "photos": {}, "log": []}</script>
 <script id="app">(function(){
 'use strict';
 
@@ -290,6 +290,7 @@ body[data-mode="dark"]{
 
 var S = JSON.parse(document.getElementById('state').textContent);
 var api=null, dl=null, apiReady=false;
+var ROLES=['owner','admin','chef'];
 var role=null, readOnly=true, dirty=false, publishing=false, pending=[];
 var idleTimer=0;
 var tab='stock', view='cards';
@@ -479,7 +480,7 @@ LOGO,
   '<button type="button" role="tab" id="tab-stock">Stock</button>',
   '<button type="button" role="tab" id="tab-overview">Overview</button>',
   '<button type="button" role="tab" id="tab-export">Excel &amp; photos</button>',
-  '<button type="button" role="tab" id="tab-setup" class="admin-only">Setup</button>',
+  '<button type="button" role="tab" id="tab-setup" class="office-only">Setup</button>',
 '</nav>',
 
 '<main>',
@@ -546,7 +547,7 @@ LOGO,
 /* ---- setup ---- */
 '<section class="panel stack" id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" hidden>',
   '<div class="card card-pad stack">',
-    '<div><h2 class="sec">Lock codes</h2><p class="sec">Two codes. The counter code can add and edit stock. The admin code can also delete, change these lists, and see the log.</p></div>',
+    '<div><h2 class="sec">Lock codes</h2><p class="sec">The same three codes as the duty roster. Chef can count stock. Owner and Admin can also delete items, change these lists and the Drive links, and read the change log.</p></div>',
     '<div class="row"><button type="button" class="btn" id="setCodes">Change lock codes</button></div>',
   '</div>',
   '<div class="card card-pad stack" id="drivesCard"></div>',
@@ -801,7 +802,8 @@ function renderLists(){
   var groups=[
     {key:'locations',title:'Locations',hint:'Where stock is counted.',min:1},
     {key:'categories',title:'Categories',hint:'How the count is grouped in Excel.',min:0},
-    {key:'units',title:'Units of measure',hint:'Offered next to the quantity box.',min:1}
+    {key:'units',title:'Units of measure',hint:'Offered next to the quantity box.',min:1},
+    {key:'staff',title:'Staff who count',hint:'Offered under “Inventory done by”.',min:0}
   ];
   host.innerHTML='<div><h2 class="sec">Lists</h2><p class="sec">These fill the drop-downs on the item form.</p></div>'+
     groups.map(function(g){
@@ -847,7 +849,7 @@ function renderLog(){
   t.innerHTML='<thead><tr><th>When</th><th>Who</th><th>What changed</th></tr></thead><tbody>'+
     log.map(function(e){
       return '<tr><td class="muted" style="white-space:nowrap">'+esc(stampText(e.t))+'</td>'+
-        '<td><span class="pill">'+esc(e.who==='admin'?'Admin':'Counter')+'</span></td>'+
+        '<td><span class="pill">'+esc(roleName(e.who)||e.who||'')+'</span></td>'+
         '<td>'+e.items.map(esc).join('<br>')+(e.more?'<div class="faint">and '+e.more+' more</div>':'')+'</td></tr>';
     }).join('')+'</tbody>';
 }
@@ -949,7 +951,7 @@ function openForm(id){
 
   var d=sheet('formSheet',
   '<div class="sheet-head"><div><h3>'+(isNew?'New item':'Edit item')+'</h3>'+
-    '<div class="who">'+(isNew?'Fill the top five boxes and save. The rest is optional.':esc(editing))+'</div></div>'+
+    '<div class="who">'+(isNew?'Fill in what has a <span class="req">*</span> and save. The rest is optional.':esc(editing))+'</div></div>'+
     '<button type="button" class="x" id="fX" aria-label="Close">&times;</button></div>'+
   '<div class="sheet-body">'+
     '<div><label class="lbl" for="iName">Item name <span class="req">*</span></label>'+
@@ -963,6 +965,20 @@ function openForm(id){
       '<div class="seg" id="iLocSeg">'+(S.locations||[]).map(function(L){
         return '<button type="button" class="segb" data-loc="'+esc(L)+'" aria-pressed="'+(L===it.loc?'true':'false')+'">'+esc(L)+'</button>';
       }).join('')+'</div></div>'+
+
+    /* Pick your name off the list, or type it if you are not on it yet —
+       a new name joins the list for whoever counts next. */
+    '<div><label class="lbl" for="iBy">Inventory done by <span class="req">*</span></label>'+
+      '<select class="f" id="iBy">'+
+        '<option value="">— choose your name —</option>'+
+        (S.staff||[]).map(function(n){
+          return '<option value="'+esc(n)+'"'+(n===it.by?' selected':'')+'>'+esc(n)+'</option>';
+        }).join('')+
+        '<option value="__other"'+(it.by&&(S.staff||[]).indexOf(it.by)<0?' selected':'')+'>+ Someone else</option>'+
+      '</select>'+
+      '<input class="f" id="iByOther" placeholder="Type the name" autocomplete="off" style="margin-top:8px" value="'+
+        (it.by&&(S.staff||[]).indexOf(it.by)<0?esc(it.by):'')+'"'+
+        (it.by&&(S.staff||[]).indexOf(it.by)<0?'':' hidden')+'></div>'+
 
     '<div class="fgrid">'+
       '<div><label class="lbl" for="iExp">Expiry date</label><input class="f" id="iExp" type="date" value="'+esc(it.expiry)+'"></div>'+
@@ -982,10 +998,9 @@ function openForm(id){
         '<div class="faint" style="font-size:11.5px">Shrunk before saving so the page stays quick. Save the originals to Drive from the Excel &amp; photos tab.</div>'+
       '</div></div></div>'+
 
-    '<details class="more"'+(it.batch||it.supplier||it.cost||it.par||it.sub||it.storage||it.by?' open':'')+'>'+
+    '<details class="more"'+(it.batch||it.supplier||it.cost!==''&&it.cost!=null||it.par!==''&&it.par!=null||it.sub||it.storage?' open':'')+'>'+
       '<summary>More details</summary>'+
       '<div class="fgrid">'+
-        '<div><label class="lbl" for="iBy">Counted by</label><input class="f" id="iBy" placeholder="Your name" value="'+esc(it.by)+'" autocomplete="off"></div>'+
         '<div><label class="lbl" for="iSub">Shelf / rack</label><input class="f" id="iSub" placeholder="e.g. Chiller 2, shelf B" value="'+esc(it.sub)+'" autocomplete="off"></div>'+
         '<div><label class="lbl" for="iStore">Stored at</label><select class="f" id="iStore">'+opts(STORAGE,it.storage,'— choose —')+'</select></div>'+
         '<div><label class="lbl" for="iBatch">Batch / lot no.</label><input class="f" id="iBatch" value="'+esc(it.batch)+'" autocomplete="off"></div>'+
@@ -998,7 +1013,7 @@ function openForm(id){
     '<div id="fErr"></div>'+
   '</div>'+
   '<div class="sheet-foot">'+
-    (isNew?'':'<button type="button" class="btn danger admin-only" id="fDel">Delete item</button>')+
+    (isNew?'':'<button type="button" class="btn danger office-only" id="fDel">Delete item</button>')+
     '<div class="spacer"></div>'+
     '<button type="button" class="btn" id="fCancel">Cancel</button>'+
     (isNew?'<button type="button" class="btn" id="fSaveNext">Save &amp; add another</button>':'')+
@@ -1026,6 +1041,12 @@ function openForm(id){
       b.setAttribute('aria-pressed','true');
     };
   });
+
+  $('iBy').onchange=function(){
+    var other=this.value==='__other';
+    $('iByOther').hidden=!other;
+    if(other)setTimeout(function(){try{$('iByOther').focus()}catch(e){}},40);
+  };
 
   $('phTake').onclick=function(){$('iPhoto').click()};
   $('phDel').onclick=function(){draftPhoto=null;paintPhoto()};
@@ -1057,7 +1078,9 @@ function lastLoc(){
   var a=items(); return a.length?a[a.length-1].loc:(S.locations||[])[0];
 }
 function lastBy(){
-  try{return localStorage.getItem('sv-inv-by')||''}catch(e){return ''}
+  var v='';
+  try{ v=localStorage.getItem('sv-inv-by')||'' }catch(e){}
+  return v;
 }
 
 function saveForm(){
@@ -1066,10 +1089,13 @@ function saveForm(){
   var locBtn=document.querySelector('#iLocSeg .segb[aria-pressed="true"]');
   var loc=locBtn?locBtn.getAttribute('data-loc'):'';
   var invDate=$('iInv').value;
+  var by=$('iBy').value;
+  if(by==='__other')by=$('iByOther').value.trim();
   var problems=[];
   if(!name)problems.push('the item name');
   if(qty===''||num(qty)<0)problems.push('a quantity');
   if(!loc)problems.push('a location');
+  if(!by)problems.push('who did the count');
   if(!invDate)problems.push('the count date');
   if(problems.length){
     $('fErr').innerHTML='<div class="note bad">Still needed: '+esc(problems.join(', '))+'.</div>';
@@ -1084,7 +1110,8 @@ function saveForm(){
   it.name=name; it.qty=num(qty); it.unit=$('iUnit').value; it.loc=loc;
   it.cat=$('iCat').value; it.cond=$('iCond').value; it.expiry=$('iExp').value;
   it.invDate=invDate; it.remark=$('iRem').value.trim();
-  it.by=$('iBy').value.trim(); it.sub=$('iSub').value.trim(); it.storage=$('iStore').value;
+  it.by=by; it.sub=$('iSub').value.trim(); it.storage=$('iStore').value;
+  if((S.staff||[]).indexOf(by)<0){ S.staff=(S.staff||[]).concat([by]); pending.push('Added '+by+' to the staff list') }
   it.batch=$('iBatch').value.trim(); it.supplier=$('iSup').value.trim();
   it.cost=$('iCost').value===''?'':num($('iCost').value);
   it.par=$('iPar').value===''?'':num($('iPar').value);
@@ -1325,21 +1352,35 @@ async function codeHash(code,salt){
   var d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+LOCK_SALT_NS+String(code)));
   return hex(new Uint8Array(d));
 }
-function getLocks(){ return S.locks||null }
-function hasLocks(){ var l=getLocks(); return !!(l&&(l.admin||l.counter)) }
+/* Three codes, the same three the duty roster uses. Owner and Admin can
+   do everything and read the change log; Chef counts stock. */
+var ROLE_LABEL={owner:'Owner',admin:'Admin',chef:'Chef'};
+function getLocks(){
+  var l=S.locks;
+  if(!l)return null;
+  /* An early version of this page called the counting code "counter". */
+  if(l.counter&&!l.chef){ l=Object.assign({},l); l.chef=l.counter; delete l.counter }
+  return l;
+}
+function hasLocks(){
+  var l=getLocks(); if(!l)return false;
+  for(var i=0;i<ROLES.length;i++)if(l[ROLES[i]])return true;
+  return false;
+}
 function canEdit(){ return role!==null }
-function roleName(r){ return r==='counter'?'Counter':(r==='admin'?'Admin':'') }
+function isOffice(){ return role==='owner'||role==='admin' }
+function roleName(r){ return ROLE_LABEL[r]||'' }
 
 function refreshMode(){
   readOnly=!canEdit();
   document.body.classList.toggle('readonly',readOnly);
-  document.body.classList.toggle('is-admin',role==='admin');
+  document.body.classList.toggle('is-office',isOffice());
   var n=$('roNote');
   if(n)n.innerHTML = hasLocks()
-    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your code.'
+    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your code — the same one you use for the duty roster.'
     : '<strong>Read only.</strong> No lock code has been set yet — ask the office to set one before the count starts.';
   renderLockButton();
-  if(tab==='setup'&&role!=='admin')selectTab('tab-stock');
+  if(tab==='setup'&&!isOffice())selectTab('tab-stock');
   else render();
 }
 
@@ -1384,7 +1425,7 @@ function armIdleLock(){
 
 function askUnlock(){
   var d=sheet('lockSheet',
-    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Enter the counter or admin code.</div></div></div>'+
+    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Your owner, admin or chef code — the same one as the duty roster.</div></div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
     '<div><label class="lbl" for="lkCode">Lock code</label>'+
     '<input class="f pin" id="lkCode" type="password" autocomplete="off"></div>'+
@@ -1392,10 +1433,12 @@ function askUnlock(){
     '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
     '<button type="button" class="btn primary" id="lkGo">Unlock</button></div>');
   var go=async function(){
-    var v=$('lkCode').value; if(!v)return;
+    var v=$('lkCode').value.trim(); if(!v)return;
     var l=getLocks()||{}, matched=null;
-    if(l.admin&&await codeHash(v,l.admin.salt)===l.admin.hash)matched='admin';
-    else if(l.counter&&await codeHash(v,l.counter.salt)===l.counter.hash)matched='counter';
+    for(var i=0;i<ROLES.length&&!matched;i++){
+      var r=ROLES[i];
+      if(l[r]&&await codeHash(v,l[r].salt)===l[r].hash)matched=r;
+    }
     if(!matched){
       $('lkErr').innerHTML='<div class="note bad">That code does not match. Check with the office.</div>';
       $('lkCode').value=''; $('lkCode').focus(); return;
@@ -1409,37 +1452,50 @@ function askUnlock(){
 }
 
 function askSetCodes(){
-  if(hasLocks()&&role!=='admin'){toast('Only the admin code can change the lock codes.',4000);return}
+  if(hasLocks()&&!isOffice()){toast('Only the owner or admin code can change the lock codes.',4500);return}
   var l=getLocks()||{};
+  var box=function(r,hint){
+    return '<div><label class="lbl" for="lk-'+r+'">'+ROLE_LABEL[r]+' code'+
+      ' <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">— '+hint+'</span></label>'+
+      '<input class="f pin" id="lk-'+r+'" type="text" autocomplete="off" placeholder="'+(l[r]?'unchanged':'not set')+'"></div>';
+  };
   var d=sheet('lockSheet',
-    '<div class="sheet-head"><div><h3>Lock codes</h3><div class="who">One for the office, one for whoever walks the shelves. Leave a box empty to keep that code as it is.</div></div></div>'+
+    '<div class="sheet-head"><div><h3>Lock codes</h3><div class="who">Keep these the same as the duty roster so nobody has to remember two. Leave a box empty to keep that code as it is.</div></div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
-    '<div><label class="lbl" for="lkAdmin">Admin code</label><input class="f pin" id="lkAdmin" type="text" autocomplete="off" placeholder="'+(l.admin?'unchanged':'not set')+'"></div>'+
-    '<div><label class="lbl" for="lkCounter">Counter code</label><input class="f pin" id="lkCounter" type="text" autocomplete="off" placeholder="'+(l.counter?'unchanged':'not set')+'"></div>'+
-    '<div class="note">At least 6 characters each, and different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
+    box('owner','everything, and reads the change log')+
+    box('admin','everything, and reads the change log')+
+    box('chef','counts stock: add and edit items')+
+    '<div class="note">At least 6 characters each, and all three different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
     '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
     '<button type="button" class="btn primary" id="lkGo">Save codes</button></div>');
   $('lkCancel').onclick=function(){closeSheet(d)};
   $('lkGo').onclick=async function(){
-    var a=$('lkAdmin').value.trim(), c=$('lkCounter').value.trim();
     var err=function(m){$('lkErr').innerHTML='<div class="note bad">'+esc(m)+'</div>'};
-    if(!a&&!c){err('Type at least one code.');return}
-    if(a&&a.length<6){err('The admin code needs at least 6 characters.');return}
-    if(c&&c.length<6){err('The counter code needs at least 6 characters.');return}
-    if(a&&c&&a===c){err('The two codes must be different.');return}
+    var typed={}, any=false;
+    for(var i=0;i<ROLES.length;i++){
+      var r=ROLES[i], v=$('lk-'+r).value.trim();
+      if(!v)continue;
+      if(v.length<6){err('The '+ROLE_LABEL[r].toLowerCase()+' code needs at least 6 characters.');return}
+      typed[r]=v; any=true;
+    }
+    if(!any){err('Type at least one code.');return}
+    var seen={};
+    for(var k in typed){
+      if(seen[typed[k]]){err('All three codes must be different from one another.');return}
+      seen[typed[k]]=1;
+    }
     var next=Object.assign({},l);
-    if(a){var sa=randSalt();next.admin={salt:sa,hash:await codeHash(a,sa)}}
-    if(c){var sc=randSalt();next.counter={salt:sc,hash:await codeHash(c,sc)}}
-    if(!next.admin){err('Set an admin code as well — without one nobody can change these settings later.');return}
+    for(var r2 in typed){ var salt=randSalt(); next[r2]={salt:salt,hash:await codeHash(typed[r2],salt)} }
+    if(!next.owner&&!next.admin){err('Set an owner or admin code as well — without one nobody can change these settings later.');return}
     S.locks=next;
-    role='admin';
-    try{sessionStorage.setItem('sv-inv-role','admin')}catch(e){}
+    if(!isOffice())role=next.owner?'owner':'admin';
+    try{sessionStorage.setItem('sv-inv-role',role)}catch(e){}
     closeSheet(d);
     mark('Changed the lock codes');
     refreshMode();
     toast('Codes saved. Publish now so they take effect for everyone.',5500);
   };
-  setTimeout(function(){try{$('lkAdmin').focus()}catch(e){}},60);
+  setTimeout(function(){try{$('lk-owner').focus()}catch(e){}},60);
 }
 
 /* ------------------------------ publish ----------------------------- */
@@ -1542,8 +1598,8 @@ try{var t0=localStorage.getItem('sv-inv-tab'); if(['stock','overview','export','
 try{var v0=localStorage.getItem('sv-inv-view'); if(v0==='cards'||v0==='table')view=v0}catch(e){}
 
 role=null;
-if(!hasLocks())role='admin';        /* a brand-new page: let the office set up */
-else{ try{var r0=sessionStorage.getItem('sv-inv-role'); if(r0==='admin'||r0==='counter')role=r0}catch(e){} }
+if(!hasLocks())role='owner';        /* a brand-new page: let the office set up */
+else{ try{var r0=sessionStorage.getItem('sv-inv-role'); if(ROLES.indexOf(r0)>=0)role=r0}catch(e){} }
 
 document.getElementById('root').innerHTML=SHELL;
 initMode();

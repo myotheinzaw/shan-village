@@ -10,21 +10,35 @@ async function codeHash(code,salt){
   var d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+LOCK_SALT_NS+String(code)));
   return hex(new Uint8Array(d));
 }
-function getLocks(){ return S.locks||null }
-function hasLocks(){ var l=getLocks(); return !!(l&&(l.admin||l.counter)) }
+/* Three codes, the same three the duty roster uses. Owner and Admin can
+   do everything and read the change log; Chef counts stock. */
+var ROLE_LABEL={owner:'Owner',admin:'Admin',chef:'Chef'};
+function getLocks(){
+  var l=S.locks;
+  if(!l)return null;
+  /* An early version of this page called the counting code "counter". */
+  if(l.counter&&!l.chef){ l=Object.assign({},l); l.chef=l.counter; delete l.counter }
+  return l;
+}
+function hasLocks(){
+  var l=getLocks(); if(!l)return false;
+  for(var i=0;i<ROLES.length;i++)if(l[ROLES[i]])return true;
+  return false;
+}
 function canEdit(){ return role!==null }
-function roleName(r){ return r==='counter'?'Counter':(r==='admin'?'Admin':'') }
+function isOffice(){ return role==='owner'||role==='admin' }
+function roleName(r){ return ROLE_LABEL[r]||'' }
 
 function refreshMode(){
   readOnly=!canEdit();
   document.body.classList.toggle('readonly',readOnly);
-  document.body.classList.toggle('is-admin',role==='admin');
+  document.body.classList.toggle('is-office',isOffice());
   var n=$('roNote');
   if(n)n.innerHTML = hasLocks()
-    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your code.'
+    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your code — the same one you use for the duty roster.'
     : '<strong>Read only.</strong> No lock code has been set yet — ask the office to set one before the count starts.';
   renderLockButton();
-  if(tab==='setup'&&role!=='admin')selectTab('tab-stock');
+  if(tab==='setup'&&!isOffice())selectTab('tab-stock');
   else render();
 }
 
@@ -69,7 +83,7 @@ function armIdleLock(){
 
 function askUnlock(){
   var d=sheet('lockSheet',
-    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Enter the counter or admin code.</div></div></div>'+
+    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Your owner, admin or chef code — the same one as the duty roster.</div></div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
     '<div><label class="lbl" for="lkCode">Lock code</label>'+
     '<input class="f pin" id="lkCode" type="password" autocomplete="off"></div>'+
@@ -77,10 +91,12 @@ function askUnlock(){
     '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
     '<button type="button" class="btn primary" id="lkGo">Unlock</button></div>');
   var go=async function(){
-    var v=$('lkCode').value; if(!v)return;
+    var v=$('lkCode').value.trim(); if(!v)return;
     var l=getLocks()||{}, matched=null;
-    if(l.admin&&await codeHash(v,l.admin.salt)===l.admin.hash)matched='admin';
-    else if(l.counter&&await codeHash(v,l.counter.salt)===l.counter.hash)matched='counter';
+    for(var i=0;i<ROLES.length&&!matched;i++){
+      var r=ROLES[i];
+      if(l[r]&&await codeHash(v,l[r].salt)===l[r].hash)matched=r;
+    }
     if(!matched){
       $('lkErr').innerHTML='<div class="note bad">That code does not match. Check with the office.</div>';
       $('lkCode').value=''; $('lkCode').focus(); return;
@@ -94,37 +110,50 @@ function askUnlock(){
 }
 
 function askSetCodes(){
-  if(hasLocks()&&role!=='admin'){toast('Only the admin code can change the lock codes.',4000);return}
+  if(hasLocks()&&!isOffice()){toast('Only the owner or admin code can change the lock codes.',4500);return}
   var l=getLocks()||{};
+  var box=function(r,hint){
+    return '<div><label class="lbl" for="lk-'+r+'">'+ROLE_LABEL[r]+' code'+
+      ' <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">— '+hint+'</span></label>'+
+      '<input class="f pin" id="lk-'+r+'" type="text" autocomplete="off" placeholder="'+(l[r]?'unchanged':'not set')+'"></div>';
+  };
   var d=sheet('lockSheet',
-    '<div class="sheet-head"><div><h3>Lock codes</h3><div class="who">One for the office, one for whoever walks the shelves. Leave a box empty to keep that code as it is.</div></div></div>'+
+    '<div class="sheet-head"><div><h3>Lock codes</h3><div class="who">Keep these the same as the duty roster so nobody has to remember two. Leave a box empty to keep that code as it is.</div></div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
-    '<div><label class="lbl" for="lkAdmin">Admin code</label><input class="f pin" id="lkAdmin" type="text" autocomplete="off" placeholder="'+(l.admin?'unchanged':'not set')+'"></div>'+
-    '<div><label class="lbl" for="lkCounter">Counter code</label><input class="f pin" id="lkCounter" type="text" autocomplete="off" placeholder="'+(l.counter?'unchanged':'not set')+'"></div>'+
-    '<div class="note">At least 6 characters each, and different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
+    box('owner','everything, and reads the change log')+
+    box('admin','everything, and reads the change log')+
+    box('chef','counts stock: add and edit items')+
+    '<div class="note">At least 6 characters each, and all three different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
     '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
     '<button type="button" class="btn primary" id="lkGo">Save codes</button></div>');
   $('lkCancel').onclick=function(){closeSheet(d)};
   $('lkGo').onclick=async function(){
-    var a=$('lkAdmin').value.trim(), c=$('lkCounter').value.trim();
     var err=function(m){$('lkErr').innerHTML='<div class="note bad">'+esc(m)+'</div>'};
-    if(!a&&!c){err('Type at least one code.');return}
-    if(a&&a.length<6){err('The admin code needs at least 6 characters.');return}
-    if(c&&c.length<6){err('The counter code needs at least 6 characters.');return}
-    if(a&&c&&a===c){err('The two codes must be different.');return}
+    var typed={}, any=false;
+    for(var i=0;i<ROLES.length;i++){
+      var r=ROLES[i], v=$('lk-'+r).value.trim();
+      if(!v)continue;
+      if(v.length<6){err('The '+ROLE_LABEL[r].toLowerCase()+' code needs at least 6 characters.');return}
+      typed[r]=v; any=true;
+    }
+    if(!any){err('Type at least one code.');return}
+    var seen={};
+    for(var k in typed){
+      if(seen[typed[k]]){err('All three codes must be different from one another.');return}
+      seen[typed[k]]=1;
+    }
     var next=Object.assign({},l);
-    if(a){var sa=randSalt();next.admin={salt:sa,hash:await codeHash(a,sa)}}
-    if(c){var sc=randSalt();next.counter={salt:sc,hash:await codeHash(c,sc)}}
-    if(!next.admin){err('Set an admin code as well — without one nobody can change these settings later.');return}
+    for(var r2 in typed){ var salt=randSalt(); next[r2]={salt:salt,hash:await codeHash(typed[r2],salt)} }
+    if(!next.owner&&!next.admin){err('Set an owner or admin code as well — without one nobody can change these settings later.');return}
     S.locks=next;
-    role='admin';
-    try{sessionStorage.setItem('sv-inv-role','admin')}catch(e){}
+    if(!isOffice())role=next.owner?'owner':'admin';
+    try{sessionStorage.setItem('sv-inv-role',role)}catch(e){}
     closeSheet(d);
     mark('Changed the lock codes');
     refreshMode();
     toast('Codes saved. Publish now so they take effect for everyone.',5500);
   };
-  setTimeout(function(){try{$('lkAdmin').focus()}catch(e){}},60);
+  setTimeout(function(){try{$('lk-owner').focus()}catch(e){}},60);
 }
 
 /* ------------------------------ publish ----------------------------- */
@@ -227,8 +256,8 @@ try{var t0=localStorage.getItem('sv-inv-tab'); if(['stock','overview','export','
 try{var v0=localStorage.getItem('sv-inv-view'); if(v0==='cards'||v0==='table')view=v0}catch(e){}
 
 role=null;
-if(!hasLocks())role='admin';        /* a brand-new page: let the office set up */
-else{ try{var r0=sessionStorage.getItem('sv-inv-role'); if(r0==='admin'||r0==='counter')role=r0}catch(e){} }
+if(!hasLocks())role='owner';        /* a brand-new page: let the office set up */
+else{ try{var r0=sessionStorage.getItem('sv-inv-role'); if(ROLES.indexOf(r0)>=0)role=r0}catch(e){} }
 
 document.getElementById('root').innerHTML=SHELL;
 initMode();

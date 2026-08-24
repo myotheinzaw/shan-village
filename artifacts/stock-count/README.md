@@ -1,8 +1,8 @@
 # Stock Count
 
 The source behind the **Shan Village Stock Count** artifact — the stock-taking
-companion to the Duty Roster. One link, one lock code; a counter walks the
-shelves with a phone and logs what is there.
+companion to the Duty Roster. One link and the roster's own lock codes; a
+counter walks the shelves with a phone and logs what is there.
 
 Published at <https://claude.ai/code/artifact/23ef92f3-3b21-43e3-9955-7c646cb9d84a>
 
@@ -28,20 +28,40 @@ Two capabilities are declared: `artifact` (to republish itself) and
 
 ## Roles
 
-| | Read | Add / edit stock | Delete, lists, Drive links, log |
+The same three codes as the duty roster, so nobody carries two sets.
+
+| | Read | Add / edit stock | Delete, lists, Drive links, change log |
 | --- | --- | --- | --- |
 | No code | ✅ | | |
-| Counter code | ✅ | ✅ | |
-| Admin code | ✅ | ✅ | ✅ |
+| Chef | ✅ | ✅ | |
+| Admin | ✅ | ✅ | ✅ |
+| Owner | ✅ | ✅ | ✅ |
 
-Codes are never stored — only a salted SHA-256 of each. An unlock lives in
-`sessionStorage` and expires after 20 minutes of no touching.
+Owner and Admin have identical rights; the pair exists so the change log can
+say which one made a change. Codes are never stored — the page ships with
+only a random salt and a SHA-256 of `salt + '|shan-village-inventory|' +
+code` per role, so reading the source tells you nothing you could type into
+the unlock box. An unlock lives in `sessionStorage` and expires after 20
+minutes of no touching.
+
+To rotate a code: unlock as Owner or Admin, **Setup → Change lock codes**,
+then Publish. To change one before a build, compute a fresh salt and hash
+and edit the `locks` object in `src/build.py` — never put a plaintext code
+in this repository.
 
 ## What it records
 
-Required per item: name, quantity + unit, location, count date (today by
-default). Optional: expiry date, category, condition, remark, photo, counted
-by, shelf/rack, storage, batch/lot, supplier, unit cost, minimum level.
+Required per item: name, quantity + unit, location, **inventory done by**,
+and count date (today by default). Optional: expiry date, category,
+condition, remark, photo, shelf/rack, storage, batch/lot, supplier, unit
+cost, minimum level.
+
+**Inventory done by** is a drop-down of the staff list with a
+*+ Someone else* option that reveals a text box; a name typed there is saved
+with the item and joins the list for whoever counts next. The list seeds
+from the duty roster and is editable under **Setup → Lists → Staff who
+count**. The last name used is remembered per device, so a repeat count is
+one tap.
 
 Derived, never typed: days to expiry, expiry status, total value
 (qty × unit cost), below-minimum flag, item ID, first-logged and
@@ -97,9 +117,15 @@ Headless Chromium, no test runner:
 
 ```sh
 npm i --no-save playwright-core
-node test/ui.test.js            # 29 checks: form, filters, export, locks
-node test/photo-rebuild.test.js # 12 checks: photo shrink, self-rebuild, phone layout
+node test/ui.test.js            # 37 checks: form, filters, export, the three roles
+node test/photo-rebuild.test.js # 13 checks: photo shrink, self-rebuild, phone layout
 ```
+
+The tests never need the real codes. `test/helpers.js` copies the built page
+and swaps its `locks` for hashes of throwaway codes, so the plaintext stays
+out of the repository. Two checks run against the *shipped* page instead:
+that all three roles are seeded with a unique salt and a well-formed hash,
+and that no plaintext code appears anywhere in the HTML.
 
 Both print `ok` / `FAIL` per check and dump any page errors at the end. The
 second one matters most: it rebuilds the document the way `publish()` does,

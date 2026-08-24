@@ -235,7 +235,8 @@ function renderLists(){
   var groups=[
     {key:'locations',title:'Locations',hint:'Where stock is counted.',min:1},
     {key:'categories',title:'Categories',hint:'How the count is grouped in Excel.',min:0},
-    {key:'units',title:'Units of measure',hint:'Offered next to the quantity box.',min:1}
+    {key:'units',title:'Units of measure',hint:'Offered next to the quantity box.',min:1},
+    {key:'staff',title:'Staff who count',hint:'Offered under “Inventory done by”.',min:0}
   ];
   host.innerHTML='<div><h2 class="sec">Lists</h2><p class="sec">These fill the drop-downs on the item form.</p></div>'+
     groups.map(function(g){
@@ -281,7 +282,7 @@ function renderLog(){
   t.innerHTML='<thead><tr><th>When</th><th>Who</th><th>What changed</th></tr></thead><tbody>'+
     log.map(function(e){
       return '<tr><td class="muted" style="white-space:nowrap">'+esc(stampText(e.t))+'</td>'+
-        '<td><span class="pill">'+esc(e.who==='admin'?'Admin':'Counter')+'</span></td>'+
+        '<td><span class="pill">'+esc(roleName(e.who)||e.who||'')+'</span></td>'+
         '<td>'+e.items.map(esc).join('<br>')+(e.more?'<div class="faint">and '+e.more+' more</div>':'')+'</td></tr>';
     }).join('')+'</tbody>';
 }
