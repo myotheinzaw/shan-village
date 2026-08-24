@@ -40,6 +40,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Employees', href: '/employees', permissions: ['staff.view'] },
       { label: 'Positions', href: '/positions', permissions: ['positions.manage'] },
       { label: 'Outlets', href: '/outlets', permissions: ['outlets.manage'] },
+      { label: 'Roster Links', href: '/roster/links', permissions: ['roster.share'] },
     ],
   },
   {

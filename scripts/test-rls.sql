@@ -657,14 +657,83 @@ select test.check('anon: DENIED filing an entry in the future',
      p_note => 'tomorrow', p_entry_date => current_date + 1)) = current_date);
 commit;
 
+
+-- -----------------------------------------------------------------------------
+-- 13b. Choosing a name from the staff list
+-- -----------------------------------------------------------------------------
+insert into public.wastage_links (id, token, label, require_name, hourly_limit, show_staff_list)
+values
+  ('aaaaaaaa-0000-0000-0000-000000000005', 'picker-token-00000000000005', 'Kitchen — with list', true, 60, true),
+  ('aaaaaaaa-0000-0000-0000-000000000006', 'typed-token-000000000000006', 'Kitchen — typed only', true, 60, false);
+
+begin;
+set local role anon;
+
+select test.check('anon: the staff list is offered when the link allows it',
+  (select count(*) from public.wastage_form_options('picker-token-00000000000005')
+   where kind = 'EMPLOYEE') = 3);
+select test.check('anon: the staff list is withheld when the link forbids it',
+  (select count(*) from public.wastage_form_options('typed-token-000000000000006')
+   where kind = 'EMPLOYEE') = 0);
+select test.check('anon: the staff list carries names and positions, and nothing else',
+  (select bool_and(name <> '' and id is not null)
+   from public.wastage_form_options('picker-token-00000000000005') where kind = 'EMPLOYEE'));
+
+select test.check('anon: choosing a name satisfies a link that demands one',
+  (select count(*) from public.wastage_submit(
+     p_token => 'picker-token-00000000000005',
+     p_employee_id => '55555555-0000-0000-0000-000000000002',
+     p_note => 'Chose my name from the list')) = 1);
+
+select test.check('anon: a made-up employee id is ignored, not trusted',
+  test.denied('select public.wastage_submit(
+     p_token => ''picker-token-00000000000005'',
+     p_employee_id => ''55555555-0000-0000-0000-0000000000ff'',
+     p_note => ''pretending'')'));
+
+select test.check('anon: an employee cannot be attached through a link with the list off',
+  (select count(*) from public.wastage_submit(
+     p_token => 'typed-token-000000000000006',
+     p_employee_id => '55555555-0000-0000-0000-000000000002',
+     p_reported_by => 'Typed By Hand',
+     p_note => 'list is off here')) = 1);
+
+commit;
+
+select test.check('a chosen name is stored with the employee''s own spelling',
+  (select reported_by_name from public.wastage_entries
+   where link_id = 'aaaaaaaa-0000-0000-0000-000000000005') = 'Win Paing');
+select test.check('a chosen name links the entry to the employee record',
+  (select employee_id from public.wastage_entries
+   where link_id = 'aaaaaaaa-0000-0000-0000-000000000005')
+  = '55555555-0000-0000-0000-000000000002');
+select test.check('a link with the list off never attaches an employee',
+  (select employee_id from public.wastage_entries
+   where link_id = 'aaaaaaaa-0000-0000-0000-000000000006') is null
+  and (select reported_by_name from public.wastage_entries
+       where link_id = 'aaaaaaaa-0000-0000-0000-000000000006') = 'Typed By Hand');
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'staff_id')::text, true);
+select test.check('staff: sees the entry they filed under their own name',
+  test.count_of('select 1 from public.wastage_entries') = 1);
+commit;
+
 -- =============================================================================
 -- 14. Wastage: who may read and change the log
 -- =============================================================================
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'staff_id')::text, true);
-select test.check('staff: DENIED reading the wastage log',
-  test.count_of('select 1 from public.wastage_entries') = 0);
+-- Not zero: this staff member picked their own name from the list in 13b, so
+-- RLS now shows them that one entry. What matters is that it shows them no
+-- other, including the several filed anonymously through the same links.
+select test.check('staff: sees their own entries and nobody else''s',
+  test.count_of('select 1 from public.wastage_entries') = 1
+  and test.count_of(
+    'select 1 from public.wastage_entries
+     where employee_id is distinct from ''55555555-0000-0000-0000-000000000002''') = 0);
 select test.check('staff: DENIED reading the link tokens',
   test.count_of('select 1 from public.wastage_links') = 0);
 select test.check('staff: holds wastage.create',
@@ -714,6 +783,225 @@ select set_config('request.jwt.claims', json_build_object('sub', :'staff2_id')::
 select test.check('staff: sees exactly the one entry matched to them',
   test.count_of('select 1 from public.wastage_entries') = 1);
 commit;
+
+
+-- =============================================================================
+-- 15. The shared duty roster, and the lock on it
+-- =============================================================================
+insert into public.roster_links (id, token, label, outlet_id, weeks_back, weeks_ahead, show_hours, require_code)
+values
+  ('bbbbbbbb-0000-0000-0000-000000000001', 'roster-token-000000000001', 'Mall — time clock',
+   (select id from public.outlets where code = 'MALL'), 2, 4, true, true),
+  ('bbbbbbbb-0000-0000-0000-000000000002', 'roster-open-token-00000002', 'Open card', null, 2, 4, false, false),
+  ('bbbbbbbb-0000-0000-0000-000000000003', 'roster-revoked-token-00003', 'Old card', null, 2, 4, false, false),
+  ('bbbbbbbb-0000-0000-0000-000000000004', 'roster-second-token-000004', 'Night Market — pass', null, 2, 4, false, true);
+update public.roster_links set is_active = false where id = 'bbbbbbbb-0000-0000-0000-000000000003';
+
+begin;
+set local role anon;
+
+select test.check('anon: DENIED reading the roster links table',
+  test.count_of('select 1 from public.roster_links') = -1);
+select test.check('anon: DENIED reading the access codes',
+  test.count_of('select 1 from public.share_access_codes') = -1);
+select test.check('anon: DENIED reading the issued sessions',
+  test.count_of('select 1 from public.share_sessions') = -1);
+
+select test.check('anon: a revoked roster link resolves to nothing',
+  (select count(*) from public.roster_link_resolve('roster-revoked-token-00003')) = 0);
+select test.check('anon: a live roster link resolves to its outlet',
+  (select outlet_name from public.roster_link_resolve('roster-token-000000000001')) = 'Mall');
+
+-- The lock itself.
+select test.check('anon: a locked link shows no roster without a code',
+  (select count(*) from public.roster_share_week('roster-token-000000000001', '2026-08-17', null)) = 0);
+select test.check('anon: a locked link shows no roster with a made-up session',
+  (select count(*) from public.roster_share_week('roster-token-000000000001', '2026-08-17', 'not-a-session')) = 0);
+select test.check('anon: a wrong code issues no session',
+  (select count(*) from public.roster_unlock('roster-token-000000000001', 'ShanOwner-0000')) = 0);
+select test.check('anon: an empty code issues no session',
+  (select count(*) from public.roster_unlock('roster-token-000000000001', '')) = 0);
+select test.check('anon: the Chef code unlocks but cannot read the Change Log',
+  (select can_view_change_log from public.roster_unlock('roster-token-000000000001', 'ShanChef-8264')) = false);
+select test.check('anon: the Owner code may read the Change Log',
+  (select can_view_change_log from public.roster_unlock('roster-token-000000000001', 'ShanOwner-5027')) = true);
+select test.check('anon: the Admin code may read the Change Log',
+  (select can_view_change_log from public.roster_unlock('roster-token-000000000001', 'ShanAdmin-4713')) = true);
+
+commit;
+
+-- Hold a Chef session and an Owner session, and check what each may reach.
+create temporary table share_test_sessions as
+select 'CHEF' as who, (select session_token from public.roster_unlock('roster-token-000000000001', 'ShanChef-8264')) as tok
+union all
+select 'OWNER', (select session_token from public.roster_unlock('roster-token-000000000001', 'ShanOwner-5027'));
+grant select on share_test_sessions to anon, authenticated;
+
+select test.check('the draft week used below really is draft, and really has rows',
+  (select status from public.roster_periods where id = '66666666-0000-0000-0000-000000000003') = 'DRAFT'
+  and (select count(*) from public.roster_assignments
+       where period_id = '66666666-0000-0000-0000-000000000003') = 3);
+
+begin;
+set local role anon;
+
+select test.check('anon: a Chef session sees the published week',
+  (select count(*) from public.roster_share_week(
+     'roster-token-000000000001', '2026-08-17',
+     (select tok from share_test_sessions where who = 'CHEF'))) > 0);
+
+select test.check('anon: a Chef session is refused the Change Log',
+  (select count(*) from public.roster_share_change_log(
+     'roster-token-000000000001',
+     (select tok from share_test_sessions where who = 'CHEF'))) = 0);
+
+select test.check('anon: an Owner session reads the Change Log',
+  (select count(*) from public.roster_share_change_log(
+     'roster-token-000000000001',
+     (select tok from share_test_sessions where who = 'OWNER'))) > 0);
+
+select test.check('anon: the Change Log never carries the before/after JSON',
+  not exists (
+    select 1 from public.roster_share_change_log(
+      'roster-token-000000000001',
+      (select tok from share_test_sessions where who = 'OWNER')) c
+    where c.summary like '%{%' or c.actor like '%{%'));
+
+-- A session is bound to the link it was issued for. Unlocking the time-clock
+-- card must not silently unlock the card by the pass.
+select test.check('anon: a session for one locked link does not open another',
+  (select count(*) from public.roster_share_week(
+     'roster-second-token-000004', '2026-08-17',
+     (select tok from share_test_sessions where who = 'OWNER'))) = 0);
+select test.check('anon: a session for one link cannot read another link''s Change Log',
+  (select count(*) from public.roster_share_change_log(
+     'roster-second-token-000004',
+     (select tok from share_test_sessions where who = 'OWNER'))) = 0);
+
+-- The DRAFT week must never appear, code or no code. Period 003 (2026-08-31)
+-- is still DRAFT at this point and carries three assignments, so this asserts
+-- against real rows rather than against an empty week.
+select test.check('anon: a DRAFT week is invisible through the link',
+  (select count(*) from public.roster_share_week(
+     'roster-token-000000000001', '2026-08-31',
+     (select tok from share_test_sessions where who = 'OWNER'))) = 0);
+
+-- The window: two weeks back, four ahead.
+select test.check('anon: a week outside the window returns nothing',
+  (select count(*) from public.roster_share_week(
+     'roster-token-000000000001', '2026-01-05',
+     (select tok from share_test_sessions where who = 'OWNER'))) = 0
+  and (select count(*) from public.roster_share_week(
+     'roster-token-000000000001', '2027-01-04',
+     (select tok from share_test_sessions where who = 'OWNER'))) = 0);
+
+-- An unlocked link needs no session at all.
+select test.check('anon: a link with the lock switched off shows the week directly',
+  (select count(*) from public.roster_share_week('roster-open-token-00000002', '2026-08-17', null)) > 0);
+select test.check('anon: a revoked link shows nothing even with a code',
+  (select count(*) from public.roster_unlock('roster-revoked-token-00003', 'ShanOwner-5027')) = 0);
+
+commit;
+
+-- What the shared week does and does not carry.
+select test.check('the shared roster shows names and shifts, never an employee code',
+  (select bool_and(employee_name <> '' ) from public.roster_share_week(
+     'roster-open-token-00000002', '2026-08-17', null)));
+select test.check('the shared roster hides hours unless the link shows them',
+  (select bool_and(scheduled_hours is null) from public.roster_share_week(
+     'roster-open-token-00000002', '2026-08-17', null)));
+select test.check('the shared roster hides notes unless the link shows them',
+  (select bool_and(note = '') from public.roster_share_week(
+     'roster-open-token-00000002', '2026-08-17', null)));
+
+-- Brute force: eleven wrong codes in a row and the link stops answering.
+begin;
+set local role anon;
+do $$
+declare i integer;
+begin
+  for i in 1 .. 11 loop
+    perform public.roster_unlock('roster-token-000000000001', 'ShanOwner-000' || i);
+  end loop;
+end $$;
+select test.check('anon: too many wrong codes stops the link answering, even to a right one',
+  (select count(*) from public.roster_unlock('roster-token-000000000001', 'ShanOwner-5027')) = 0);
+commit;
+
+-- Who may hold the codes and the links.
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'staff_id')::text, true);
+select test.check('staff: DENIED reading the roster link tokens',
+  test.count_of('select 1 from public.roster_links') = 0);
+select test.check('staff: DENIED reading the access codes',
+  test.count_of('select 1 from public.share_access_codes') = 0);
+select test.check('staff: DENIED roster.share',
+  not app.has_permission('roster.share'));
+select test.check('staff: DENIED minting a roster link',
+  test.affected('insert into public.roster_links (token, label) values (''staff-roster-token-0001'', ''mine'')') <= 0);
+commit;
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'mgr_id')::text, true);
+select test.check('manager: holds roster.share',
+  app.has_permission('roster.share'));
+select test.check('manager: sees the access codes as hints, not codes',
+  (select bool_and(code_hint like '%…%') from public.share_access_codes));
+select test.check('manager: DENIED reading the issued sessions',
+  test.count_of('select 1 from public.share_sessions') <= 0);
+select test.check('manager: DENIED reading the failed-code attempts',
+  test.count_of('select 1 from public.share_code_attempts') <= 0);
+commit;
+
+
+-- -----------------------------------------------------------------------------
+-- 15b. Changing an access code
+-- -----------------------------------------------------------------------------
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'staff_id')::text, true);
+select test.check('staff: DENIED changing an access code',
+  test.denied('select public.share_code_set(''CHEF'', ''StaffPicked-9999'')'));
+commit;
+
+begin;
+set local role anon;
+select test.check('anon: DENIED changing an access code',
+  test.denied('select public.share_code_set(''CHEF'', ''AnonPicked-9999'')'));
+commit;
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'mgr_id')::text, true);
+select test.check('manager: DENIED a code that is too short to be one',
+  test.denied('select public.share_code_set(''CHEF'', ''short'')'));
+select test.check('manager: DENIED giving two roles the same code',
+  test.denied('select public.share_code_set(''CHEF'', ''ShanOwner-5027'')'));
+select test.check('manager: may change a code',
+  test.denied('select public.share_code_set(''CHEF'', ''ShanChef-1111'')') = false);
+commit;
+
+begin;
+set local role anon;
+select test.check('anon: the old code stops working the moment it is changed',
+  (select count(*) from public.roster_unlock('roster-second-token-000004', 'ShanChef-8264')) = 0);
+select test.check('anon: the new code works',
+  (select count(*) from public.roster_unlock('roster-second-token-000004', 'ShanChef-1111')) = 1);
+select test.check('anon: the other roles are untouched by one code changing',
+  (select count(*) from public.roster_unlock('roster-second-token-000004', 'ShanOwner-5027')) = 1);
+commit;
+
+select test.check('changing a code ends the sessions opened with it',
+  (select count(*) from public.share_sessions where role = 'CHEF'
+   and created_at < (select updated_at from public.share_access_codes where role = 'CHEF')) = 0);
+select test.check('an access code is never stored in plain text',
+  (select bool_and(code_hash like '$2%' and code_hash not like '%Shan%')
+   from public.share_access_codes));
+select test.check('the code hint gives away no more than the last two characters',
+  (select bool_and(code_hint not like '%Shan_____-%')
+   from public.share_access_codes));
 
 -- =============================================================================
 -- Report

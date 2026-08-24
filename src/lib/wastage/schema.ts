@@ -63,6 +63,8 @@ const loose = (max: number) =>
 export const submissionSchema = z
   .object({
     reportedBy: optionalText(120),
+    /** Set when the reporter picked themselves from the staff list. */
+    employeeId: optionalUuid,
     itemName: optionalText(200),
     note: optionalText(2000),
     entryDate: z

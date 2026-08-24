@@ -18,8 +18,16 @@ interface Option {
   name: string
 }
 
+interface StaffOption extends Option {
+  position: string
+}
+
+/** The value the name dropdown carries for "I am not on this list". */
+const TYPE_IT = '__type__'
+
 /** Remembers the reporter's name between entries on the same phone. */
 const NAME_KEY = 'shan-village.wastage.name'
+const STAFF_KEY = 'shan-village.wastage.employee'
 
 /**
  * Downscales a camera photo before upload.
@@ -79,6 +87,7 @@ export function WastageForm({
   fixedOutlet,
   outlets,
   reasons,
+  staff,
   showOutletPicker,
 }: {
   token: string
@@ -91,12 +100,15 @@ export function WastageForm({
   fixedOutlet: string | null
   outlets: Option[]
   reasons: Option[]
+  staff: StaffOption[]
   showOutletPicker: boolean
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [name, setName] = useState('')
+  // '' = nothing chosen yet, TYPE_IT = typing instead, otherwise an employee id.
+  const [employeeId, setEmployeeId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Submitted | null>(null)
@@ -107,12 +119,20 @@ export function WastageForm({
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(NAME_KEY)
-      if (stored) setName(stored)
+      const storedName = window.localStorage.getItem(NAME_KEY)
+      if (storedName) setName(storedName)
+      const storedStaff = window.localStorage.getItem(STAFF_KEY)
+      // Only reuse the remembered person if they are still on the list; someone
+      // who has left should not keep appearing on this phone.
+      if (storedStaff && staff.some((person) => person.id === storedStaff)) {
+        setEmployeeId(storedStaff)
+      } else if (storedName && staff.length > 0) {
+        setEmployeeId(TYPE_IT)
+      }
     } catch {
       // Private browsing; the name simply is not remembered.
     }
-  }, [])
+  }, [staff])
 
   useEffect(() => {
     if (!photo) {
@@ -152,6 +172,10 @@ export function WastageForm({
       setError('Please take a photo.')
       return
     }
+    if (requireName && !form.get('employeeId') && !String(form.get('reportedBy') ?? '').trim()) {
+      setError('Choose your name from the list, or type it.')
+      return
+    }
     if (!photo && !String(form.get('itemName') ?? '').trim() && !String(form.get('note') ?? '').trim()) {
       setError('Add a photo, or say what was thrown away.')
       return
@@ -178,6 +202,9 @@ export function WastageForm({
       try {
         const reporter = String(form.get('reportedBy') ?? '').trim()
         if (reporter) window.localStorage.setItem(NAME_KEY, reporter)
+        const chosen = String(form.get('employeeId') ?? '')
+        if (chosen) window.localStorage.setItem(STAFF_KEY, chosen)
+        else window.localStorage.removeItem(STAFF_KEY)
       } catch {
         // Nothing to do; remembering the name is a convenience.
       }
@@ -199,6 +226,7 @@ export function WastageForm({
     setDone(null)
     setPhoto(null)
     setError(null)
+    // The name is deliberately kept: the same person usually files the next one.
     setEntryDate(today)
     setEntryTime(new Date().toTimeString().slice(0, 5))
   }
@@ -358,18 +386,54 @@ export function WastageForm({
         </Field>
       </div>
 
-      <Field label="Your name" htmlFor="reportedBy" required={requireName}>
-        <Input
-          id="reportedBy"
-          name="reportedBy"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
+      {staff.length > 0 ? (
+        <Field
+          label="Your name"
+          htmlFor="staffPicker"
           required={requireName}
-          maxLength={120}
-          autoComplete="name"
-          placeholder="So the manager knows who to ask"
-        />
-      </Field>
+          hint="Pick yourself from the list so the report groups your entries together."
+        >
+          <Select
+            id="staffPicker"
+            value={employeeId}
+            onChange={(event) => setEmployeeId(event.target.value)}
+            required={requireName && employeeId !== TYPE_IT}
+          >
+            <option value="">Choose your name</option>
+            {staff.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.position ? `${person.name} — ${person.position}` : person.name}
+              </option>
+            ))}
+            <option value={TYPE_IT}>My name is not on the list — type it</option>
+          </Select>
+        </Field>
+      ) : null}
+
+      {/* The id only travels when a real person is chosen; TYPE_IT is a UI
+          state, not something the server should ever see. */}
+      {employeeId && employeeId !== TYPE_IT ? (
+        <input type="hidden" name="employeeId" value={employeeId} />
+      ) : null}
+
+      {staff.length === 0 || employeeId === TYPE_IT ? (
+        <Field
+          label={staff.length === 0 ? 'Your name' : 'Type your name'}
+          htmlFor="reportedBy"
+          required={requireName}
+        >
+          <Input
+            id="reportedBy"
+            name="reportedBy"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required={requireName}
+            maxLength={120}
+            autoComplete="name"
+            placeholder="So the manager knows who to ask"
+          />
+        </Field>
+      ) : null}
 
       <Button type="submit" size="lg" disabled={busy} className="mt-1 h-14 text-base">
         {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}

@@ -27,6 +27,12 @@ const nextConfig = {
         ],
       },
       {
+        // The shared duty roster carries staff names, so it stays out of search
+        // engines even though the address itself is the only thing guarding it.
+        source: '/r/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
         // The service worker must never be cached, or staff get a stale shell.
         source: '/sw.js',
         headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }],

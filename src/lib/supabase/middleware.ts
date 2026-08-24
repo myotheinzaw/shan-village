@@ -14,6 +14,9 @@ const PUBLIC_PATHS = [
   // reaches anything else.
   '/w',
   '/api/wastage/submit',
+  // The shared duty roster. Read-only, published weeks only, and the token is
+  // checked by the database.
+  '/r',
   // Scheduled jobs authenticate with CRON_SECRET, not with a session.
   '/api/cron',
   '/forgot-password',

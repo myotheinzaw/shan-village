@@ -498,3 +498,77 @@ adds two uses, and both are narrow and documented at the point of use:
 
 Neither reads or writes operational rows on behalf of a signed-in user. That still goes through the
 user-scoped client, so RLS keeps deciding who sees which entry.
+
+
+---
+
+## 13. Shared links
+
+Two things are handed out without a login. They share a shape — a random token
+in the address, a row that can be revoked or rotated, and `SECURITY DEFINER`
+functions that are the entire public surface — and they point in opposite
+directions: the wastage link writes one row, the roster link reads one week.
+Operator-facing detail is in [`docs/ROSTER-LINK.md`](docs/ROSTER-LINK.md).
+
+### 13.1 The roster link
+
+`/r/<token>`, one per outlet, printed as a QR code. It shows the **published**
+roster: the query condition is `rp.status = 'PUBLISHED'`, character for
+character the condition in the staff RLS policy, so a draft roster is no more
+visible through a printed card than it is in the application. A locked
+historical week is not shown either.
+
+Three further limits, all of them in SQL rather than in the page:
+
+- **A window.** Two weeks back and four ahead by default, per link. A leaked
+  address cannot be walked backwards through the restaurant's history.
+- **No leave types.** Every kind of leave renders as a bare `Leave`, reusing
+  `formatShift`. That a person is off is roster information; that they are sick
+  is not, and a roster on a wall is read by anyone walking past it.
+- **Hours and notes off by default**, per link, for the same reason.
+
+### 13.2 The lock
+
+Three access codes, one per role — Owner, Admin, Chef. The role decides exactly
+one thing: whether the **Change Log** is readable. Owner and Admin read it,
+Chef does not. Nothing a code grants can change a roster; publishing and editing
+stay behind a real login, so every change keeps a named person against it in the
+audit trail rather than "whoever knew the code".
+
+The mechanism, and why each part is there:
+
+| Piece | Why |
+|---|---|
+| bcrypt hashes (`pgcrypto`) | a code is never stored, logged or returned; a forgotten one is replaced, not recovered |
+| an opaque session token, not a signed cookie | no signing secret to manage, and a session can be ended from the database |
+| cookie scoped to `/r/<token>`, httpOnly, 12 hours | unlocking one card does not unlock another; a borrowed phone forgets by the end of a double shift |
+| ten failures per link per fifteen minutes | generous for a typo, hopeless for a guesser |
+| one sentence for every failure | a wrong code, an unknown link, a revoked link and a rate-limited link are indistinguishable |
+| changing a code deletes that role's sessions | otherwise "change the code" would not be the answer to a code that has got out |
+| `share_sessions` and `share_code_attempts` have RLS on and **no policy** | not even a manager reads who tried what |
+
+The seeded codes are in migration 1300 and therefore in version control. They
+are a starting point, not a secret; the Access codes screen rehashes a new one
+in the database and touches no file.
+
+### 13.3 The Change Log
+
+The same append-only `audit_logs` the Administration screen reads, reduced to
+what a roster reader needs: when, who, which person, which shift date, and what
+changed. The before/after JSON never leaves the database — the summary is
+composed in SQL from the two versions of the row, and the test suite asserts
+that no brace ever reaches the caller.
+
+### 13.4 Picking a name on the wastage form
+
+Typing a name produced "Win Paing", "win paing " and "W.Paing" for one person in
+the old spreadsheet — the exact defect §2.2 records the importer having to clean
+up. The form now offers the active staff list, and choosing from it stores the
+employee's own spelling and sets `wastage_entries.employee_id`, which is what
+makes the "own entries" arm of the wastage RLS policy do anything. Typing is
+still there for a trial worker or an agency cover.
+
+The list is names and positions only, gated on a valid link token, and switchable
+off per link. An employee id that is not an active employee is ignored rather
+than trusted — a caller cannot file an entry as somebody else by editing the
+form.

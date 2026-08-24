@@ -58,7 +58,7 @@ hyperlink straight to its picture.
 | Outlet | Hidden when the link is tied to one outlet, which is the intended setup. |
 | Date | Defaults to **today** in the restaurant's timezone, taken from the server, not the phone. Cannot be set in the future or more than a week back. |
 | Time | Defaults to **now**, same source. Editable. |
-| Your name | Remembered on that phone for next time. Required unless you switch it off per link. |
+| Your name | **Pick from the staff list, or type it.** Picking stores the employee's own spelling and matches the entry to their record, so the report groups a person's entries together and a staff member with a login sees their own. Remembered on that phone for next time. Required unless you switch it off per link. |
 
 An entry needs a photo, an item, or a note. All three blank is refused.
 
@@ -77,6 +77,9 @@ Each link has:
 
 - an **hourly ceiling** (default 60 entries) so one leaked address is a
   nuisance, not an open write endpoint;
+- **Offer the staff list** (on by default) — names and positions of active
+  staff for the picker. Switch it off for a card somewhere the staff list should
+  not be readable, and the form falls back to typed names only;
 - an optional **expiry**;
 - **New address**, which issues a fresh token and kills the old one immediately.
   Entries already filed keep their history.
@@ -187,6 +190,9 @@ Two rules the numbers follow:
 | `wastage.cost_view` | **Admin only** | See what wastage was worth |
 | `wastage.delete` | **Nobody** | Remove an entry from the log entirely |
 
+See also [`ROSTER-LINK.md`](ROSTER-LINK.md) for the shared duty roster, which
+uses the same tokenised-link pattern pointed the other way.
+
 `wastage.cost_view` follows the same rule as `finance.view` in Phase 1: a
 manager who reviews entries does not thereby see the money. Without it, the
 value column is absent from the screen, from the download and from the totals —
@@ -216,6 +222,8 @@ being precise about what an anonymous caller can do.
 - Photos live in a **private** bucket. Management reaches one through a 15-minute
   signed URL issued by `/api/wastage/photo/[id]`, and only after RLS on the entry
   row has already agreed the caller may see it.
+- The staff list, when a link offers it, carries names and positions only, and
+  an employee id that is not an active employee is ignored rather than trusted.
 - Every entry, link and reason change is audited.
 
 All of this is asserted in `scripts/test-rls.sql` (section 13–14) against the

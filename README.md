@@ -40,6 +40,8 @@ seconds, with no login.
   bin. Camera button, note, reason, quantity, optional value; the date defaults
   to today and the time to now, both taken from the restaurant's clock rather
   than the phone's.
+- Staff **pick their name from the list or type it**. Picking stores the
+  employee's own spelling and links the entry to their record.
 - Photos are downscaled in the browser and stored in a private bucket.
 - Management gets a daily log with the photo, review (confirm / reject) and
   per-day totals.
@@ -50,6 +52,24 @@ seconds, with no login.
 Tokens are revocable and rate-limited, and `wastage.cost_view` gates the money
 exactly as `finance.view` does. Setup and the security model are in
 [`docs/WASTAGE.md`](docs/WASTAGE.md).
+
+## Shared links
+
+Two things can be handed out without a login, both as a tokenised address you
+print as a QR code:
+
+| Link | Who opens it | What it does |
+|---|---|---|
+| `/w/<token>` | anyone by the bin | files one wastage entry |
+| `/r/<token>` | anyone with the access code | reads the published duty roster |
+
+The roster link is locked with a short code — Owner, Admin and Chef — and the
+role decides one thing: Owner and Admin read the **Change Log**, Chef does not.
+Codes are bcrypt-hashed, rate-limited, changeable from the app, and a correct
+one buys a 12-hour session on that phone. The link is read-only: no draft
+roster, no leave *types*, no week outside the allowed window, and nothing that
+can change a roster — editing stays behind a real login so every change keeps a
+named person in the audit trail. See [`docs/ROSTER-LINK.md`](docs/ROSTER-LINK.md).
 
 ## Shift handling
 
@@ -97,11 +117,13 @@ npm run db:test    # applies the real migrations to PostgreSQL and tests RLS
 `npm run db:test` needs a local PostgreSQL 16. It rebuilds a scratch database
 from `supabase/migrations`, adds a small shim that reproduces Supabase's `auth`
 schema and its `anon` / `authenticated` / `service_role` roles, then runs
-`scripts/test-rls.sql` — 157 assertions covering permission resolution, the
+`scripts/test-rls.sql` — 213 assertions covering permission resolution, the
 draft/published boundary, financial separation, privilege-escalation attempts,
 the append-only audit trail, roster locking, the request workflow, and the
-public wastage link (revoked, expired and unknown tokens, the hourly ceiling,
-back-dating, and what an anonymous caller can and cannot reach).
+public links — revoked, expired and unknown tokens, the wastage hourly ceiling,
+back-dating, the staff-name picker, and for the shared roster the access-code
+lock, its brute-force ceiling, session binding, the draft roster staying
+invisible, and the Change Log being refused to the Chef code.
 
 ## Security model, in one paragraph
 
@@ -136,6 +158,7 @@ src/lib/auth/              session, permissions and the server-action guards
 src/app/(management)/      management application
 src/app/staff/             the staff phone app
 src/app/w/[token]/         the public wastage form — no login, no app shell
+src/app/r/[token]/         the shared duty roster, behind an access code
 docs/samples/              the source spreadsheet, used as a test fixture
 ```
 
@@ -159,3 +182,7 @@ docs/samples/              the source spreadsheet, used as a test fixture
 - **A printed wastage QR code is a door key.** Anyone holding the address can
   file an entry. Give each outlet its own link so one leak is revoked alone,
   and use *New address* when a printed card goes missing.
+- **Change the three roster access codes before you rely on them.** They are
+  seeded by a migration in this repository, so anyone who can read the repo can
+  read them. Roster Links → Access codes → Change code rehashes a new one in the
+  database and touches no file.

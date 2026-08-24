@@ -10,29 +10,76 @@ import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Field, Input, Select } from '@/components/ui/field'
 import { EmptyState, Table, TableWrap, Td, Th } from '@/components/ui/table'
 import type { ActionResult } from '@/lib/actions/result'
-import type { WastageLink } from '@/types/db'
-import { rotateWastageLink, saveWastageLink } from './actions'
+
+/**
+ * The manager for a family of public, tokenised links — the wastage form and
+ * the shared roster today, and anything else the restaurant wants to hand out
+ * without a login later.
+ *
+ * Everything the two uses do not share is passed in declaratively, the same way
+ * SimpleMaster works, so a server page can configure this without shipping
+ * functions to the client.
+ */
 
 const EMPTY: ActionResult = { ok: false }
 
-interface Option {
+export interface ShareLinkRow {
   id: string
-  name: string
+  label: string
+  token: string
+  outletId: string | null
+  isActive: boolean
+  expiresAt: string | null
+  usageCount: number
+  lastUsedAt: string | null
+  /** A short second line under the name: whatever matters about this link. */
+  detail?: string
+  /** Values for the extra fields, keyed by field name. */
+  values: Record<string, string | number | boolean>
 }
 
-export function LinksManager({
-  links,
+export interface ShareLinkField {
+  name: string
+  label: string
+  type: 'number' | 'checkbox'
+  hint?: string
+  defaultValue: string | number | boolean
+  min?: number
+  max?: number
+}
+
+export function ShareLinkManager({
+  rows,
   outlets,
   baseUrl,
+  pathPrefix,
+  entityLabel,
+  usageLabel,
+  outletHint,
+  anyOutletLabel,
+  fields,
+  saveAction,
+  rotateAction,
+  emptyDescription,
 }: {
-  links: WastageLink[]
-  outlets: Option[]
+  rows: ShareLinkRow[]
+  outlets: { id: string; name: string }[]
   baseUrl: string
+  /** The public path segment, e.g. `w` for /w/<token>. */
+  pathPrefix: string
+  entityLabel: string
+  usageLabel: string
+  outletHint: string
+  anyOutletLabel: string
+  fields: ShareLinkField[]
+  saveAction: (previous: ActionResult, form: FormData) => Promise<ActionResult>
+  rotateAction: (previous: ActionResult, form: FormData) => Promise<ActionResult>
+  emptyDescription: string
 }) {
   const router = useRouter()
-  const [saveState, save, saving] = useActionState(saveWastageLink, EMPTY)
-  const [rotateState, rotate, rotating] = useActionState(rotateWastageLink, EMPTY)
-  const [editing, setEditing] = useState<WastageLink | null>(null)
+  const [saveState, save, saving] = useActionState(saveAction, EMPTY)
+  const [rotateState, rotate, rotating] = useActionState(rotateAction, EMPTY)
+  const [editing, setEditing] = useState<ShareLinkRow | null>(null)
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [notice, setNotice] = useState<ActionResult | null>(null)
@@ -53,27 +100,22 @@ export function LinksManager({
     if (rotateState.ok) router.refresh()
   }, [rotateState, router])
 
-  const addressFor = (link: WastageLink) => `${baseUrl}/w/${link.token}`
+  const addressFor = (row: ShareLinkRow) => `${baseUrl}/${pathPrefix}/${row.token}`
 
-  async function copy(link: WastageLink) {
-    const address = addressFor(link)
+  async function copy(row: ShareLinkRow) {
+    const address = addressFor(row)
     try {
       await navigator.clipboard.writeText(address)
-      setCopied(link.id)
+      setCopied(row.id)
       window.setTimeout(() => setCopied(null), 2000)
     } catch {
-      // Clipboard permission refused; the address is on screen to copy by hand.
+      // Clipboard permission refused; put the address where it can be read.
       setNotice({ ok: false, error: `Copy this address by hand: ${address}` })
     }
   }
 
   function startNew() {
     setEditing(null)
-    setOpen(true)
-  }
-
-  function startEdit(link: WastageLink) {
-    setEditing(link)
     setOpen(true)
   }
 
@@ -93,10 +135,10 @@ export function LinksManager({
       ) : null}
 
       <TableWrap>
-        {links.length === 0 ? (
+        {rows.length === 0 ? (
           <EmptyState
-            title="No submission links yet"
-            description="Create one per outlet, then print each as a QR code."
+            title={`No ${entityLabel.toLowerCase()} links yet`}
+            description={emptyDescription}
             action={
               <Button type="button" onClick={startNew}>
                 <Plus aria-hidden />
@@ -111,30 +153,35 @@ export function LinksManager({
                 <Th>Name</Th>
                 <Th>Outlet</Th>
                 <Th>Address</Th>
-                <Th className="text-right">Entries</Th>
+                <Th className="text-right">{usageLabel}</Th>
                 <Th>Last used</Th>
                 <Th>State</Th>
                 <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {links.map((link) => {
-                const expired = Boolean(link.expires_at && new Date(link.expires_at) < new Date())
+              {rows.map((row) => {
+                const expired = Boolean(row.expiresAt && new Date(row.expiresAt) < new Date())
                 return (
-                  <tr key={link.id}>
-                    <Td className="font-medium text-ink-900">{link.label}</Td>
-                    <Td>{outlets.find((o) => o.id === link.outlet_id)?.name ?? 'Any outlet'}</Td>
+                  <tr key={row.id}>
+                    <Td>
+                      <span className="font-medium text-ink-900">{row.label}</span>
+                      {row.detail ? (
+                        <span className="block text-xs text-ink-500">{row.detail}</span>
+                      ) : null}
+                    </Td>
+                    <Td>{outlets.find((o) => o.id === row.outletId)?.name ?? anyOutletLabel}</Td>
                     <Td>
                       <code className="rounded bg-sand-100 px-1.5 py-0.5 text-xs">
-                        /w/{link.token.slice(0, 10)}…
+                        /{pathPrefix}/{row.token.slice(0, 10)}…
                       </code>
                     </Td>
-                    <Td className="text-right tabular-nums">{link.submission_count}</Td>
+                    <Td className="text-right tabular-nums">{row.usageCount}</Td>
                     <Td className="whitespace-nowrap text-ink-500">
-                      {link.last_used_at ? new Date(link.last_used_at).toLocaleString() : 'Never'}
+                      {row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : 'Never'}
                     </Td>
                     <Td>
-                      {!link.is_active ? (
+                      {!row.isActive ? (
                         <Badge variant="muted">Revoked</Badge>
                       ) : expired ? (
                         <Badge variant="warning">Expired</Badge>
@@ -144,22 +191,30 @@ export function LinksManager({
                     </Td>
                     <Td>
                       <div className="flex flex-wrap gap-1">
-                        <Button type="button" size="sm" variant="outline" onClick={() => copy(link)}>
+                        <Button type="button" size="sm" variant="outline" onClick={() => copy(row)}>
                           <Copy aria-hidden />
-                          {copied === link.id ? 'Copied' : 'Copy'}
+                          {copied === row.id ? 'Copied' : 'Copy'}
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                          <a href={addressFor(link)} target="_blank" rel="noreferrer">
+                          <a href={addressFor(row)} target="_blank" rel="noreferrer">
                             <ExternalLink aria-hidden />
                             Open
                           </a>
                         </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(link)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditing(row)
+                            setOpen(true)
+                          }}
+                        >
                           <Pencil aria-hidden />
                           Edit
                         </Button>
                         <form action={rotate}>
-                          <input type="hidden" name="id" value={link.id} />
+                          <input type="hidden" name="id" value={row.id} />
                           <Button type="submit" size="sm" variant="ghost" disabled={rotating}>
                             <KeyRound aria-hidden />
                             New address
@@ -176,7 +231,7 @@ export function LinksManager({
       </TableWrap>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent title={editing ? 'Edit link' : 'New submission link'}>
+        <DialogContent title={editing ? 'Edit link' : `New ${entityLabel.toLowerCase()} link`}>
           <form action={save} className="flex flex-col gap-4">
             {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
 
@@ -187,17 +242,13 @@ export function LinksManager({
                 required
                 maxLength={80}
                 defaultValue={editing?.label ?? ''}
-                placeholder="e.g. Mall kitchen — bin station"
+                placeholder="e.g. Mall kitchen — by the time clock"
               />
             </Field>
 
-            <Field
-              label="Outlet"
-              htmlFor="outletId"
-              hint="Fixing the outlet removes a question from the form."
-            >
-              <Select id="outletId" name="outletId" defaultValue={editing?.outlet_id ?? ''}>
-                <option value="">Let the reporter choose</option>
+            <Field label="Outlet" htmlFor="outletId" hint={outletHint}>
+              <Select id="outletId" name="outletId" defaultValue={editing?.outletId ?? ''}>
+                <option value="">{anyOutletLabel}</option>
                 {outlets.map((outlet) => (
                   <option key={outlet.id} value={outlet.id}>
                     {outlet.name}
@@ -206,48 +257,54 @@ export function LinksManager({
               </Select>
             </Field>
 
-            <Field
-              label="Entries per hour"
-              htmlFor="hourlyLimit"
-              hint="A ceiling on this link. 0 removes the limit."
-            >
-              <Input
-                id="hourlyLimit"
-                name="hourlyLimit"
-                type="number"
-                min={0}
-                max={1000}
-                defaultValue={editing?.hourly_limit ?? 60}
-              />
-            </Field>
+            {fields.map((field) => {
+              const value = editing ? editing.values[field.name] : field.defaultValue
+              return field.type === 'checkbox' ? (
+                <label key={field.name} className="flex items-start gap-2 text-sm text-ink-700">
+                  <input
+                    type="checkbox"
+                    name={field.name}
+                    defaultChecked={Boolean(value)}
+                    className="mt-0.5 size-4 rounded border-sand-300"
+                  />
+                  <span>
+                    {field.label}
+                    {field.hint ? (
+                      <span className="block text-xs text-ink-500">{field.hint}</span>
+                    ) : null}
+                  </span>
+                </label>
+              ) : (
+                <Field key={field.name} label={field.label} htmlFor={field.name} hint={field.hint}>
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    type="number"
+                    min={field.min}
+                    max={field.max}
+                    defaultValue={String(value ?? '')}
+                  />
+                </Field>
+              )
+            })}
 
             <Field label="Expires" htmlFor="expiresAt" hint="Leave blank for a link that does not expire.">
               <Input
                 id="expiresAt"
                 name="expiresAt"
                 type="date"
-                defaultValue={editing?.expires_at ? editing.expires_at.slice(0, 10) : ''}
+                defaultValue={editing?.expiresAt ? editing.expiresAt.slice(0, 10) : ''}
               />
             </Field>
 
             <label className="flex items-center gap-2 text-sm text-ink-700">
               <input
                 type="checkbox"
-                name="requireName"
-                defaultChecked={editing ? editing.require_name : true}
-                className="size-4 rounded border-sand-300"
-              />
-              The reporter must give their name
-            </label>
-
-            <label className="flex items-center gap-2 text-sm text-ink-700">
-              <input
-                type="checkbox"
                 name="isActive"
-                defaultChecked={editing ? editing.is_active : true}
+                defaultChecked={editing ? editing.isActive : true}
                 className="size-4 rounded border-sand-300"
               />
-              Active — the address accepts entries
+              Active — the address works
             </label>
 
             <DialogFooter>

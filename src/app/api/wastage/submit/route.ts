@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = submissionSchema.safeParse({
     reportedBy: field(form, 'reportedBy'),
+    employeeId: field(form, 'employeeId'),
     itemName: field(form, 'itemName'),
     note: field(form, 'note'),
     entryDate: field(form, 'entryDate'),
@@ -99,7 +100,9 @@ export async function POST(request: NextRequest) {
   const photo = form.get('photo')
   const hasPhoto = photo instanceof File && photo.size > 0
 
-  if (link.require_name && !value.reportedBy) {
+  // Either half of "choose or type" satisfies the name requirement; which one
+  // was used is settled in SQL, where the chosen employee's own spelling wins.
+  if (link.require_name && !value.reportedBy && !value.employeeId) {
     return NextResponse.json({ ok: false, error: 'Please enter your name.' }, { status: 400 })
   }
   if (link.require_photo && !hasPhoto) {
@@ -155,6 +158,7 @@ export async function POST(request: NextRequest) {
     .rpc('wastage_submit', {
       p_token: token,
       p_reported_by: value.reportedBy ?? '',
+      p_employee_id: value.employeeId,
       p_item_name: value.itemName ?? '',
       p_note: value.note ?? '',
       p_entry_date: entryDate,

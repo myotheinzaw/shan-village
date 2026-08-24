@@ -34,7 +34,7 @@ interface ResolvedLink {
 }
 
 interface FormOption {
-  kind: 'REASON' | 'OUTLET'
+  kind: 'REASON' | 'OUTLET' | 'EMPLOYEE'
   id: string
   code: string
   name: string
@@ -77,6 +77,9 @@ export default async function PublicWastagePage({
         fixedOutlet={link.outlet_name}
         outlets={options.filter((o) => o.kind === 'OUTLET').map((o) => ({ id: o.id, name: o.name }))}
         reasons={options.filter((o) => o.kind === 'REASON').map((o) => ({ id: o.id, name: o.name }))}
+        staff={options
+          .filter((o) => o.kind === 'EMPLOYEE')
+          .map((o) => ({ id: o.id, name: o.name, position: o.code }))}
         showOutletPicker={!link.outlet_id}
       />
 

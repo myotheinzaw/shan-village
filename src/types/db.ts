@@ -405,6 +405,7 @@ export interface WastageLink {
   is_active: boolean
   expires_at: string | null
   require_name: boolean
+  show_staff_list: boolean
   hourly_limit: number
   submission_count: number
   last_used_at: string | null
@@ -456,4 +457,50 @@ export interface WastageExport {
   error: string | null
   created_at: string
   created_by: string | null
+}
+
+/* -------------------------------------------------------------------------- */
+/* Roster sharing                                                             */
+/* -------------------------------------------------------------------------- */
+
+export interface RosterLink {
+  id: string
+  token: string
+  label: string
+  outlet_id: string | null
+  is_active: boolean
+  expires_at: string | null
+  weeks_back: number
+  weeks_ahead: number
+  show_hours: boolean
+  show_notes: boolean
+  require_code: boolean
+  view_count: number
+  last_viewed_at: string | null
+  created_at: string
+  created_by: string | null
+}
+
+/**
+ * One row of the public roster view. Deliberately not a RosterAssignment: it
+ * carries display names rather than ids, and it has no leave type, no employee
+ * code and no contact details, because it is served to anyone holding the link.
+ */
+export interface RosterShareRow {
+  work_date: string
+  employee_id: string
+  employee_name: string
+  position_name: string
+  outlet_name: string
+  status: AssignmentStatus
+  start_time: string | null
+  end_time: string | null
+  crosses_midnight: boolean
+  is_split: boolean
+  segment2_start: string | null
+  segment2_end: string | null
+  /** Null unless the link has show_hours switched on. */
+  scheduled_hours: number | null
+  /** Empty unless the link has show_notes switched on. */
+  note: string
 }

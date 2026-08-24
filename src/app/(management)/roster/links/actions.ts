@@ -7,11 +7,7 @@ import { assertPermission } from '@/lib/auth/session'
 import { actionFailure, type ActionResult } from '@/lib/actions/result'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
-/**
- * A link token is the only credential guarding the public form, so it is
- * generated from a CSPRNG and is long enough that guessing is not a strategy:
- * 24 bytes, base64url, 32 characters.
- */
+/** 24 bytes of CSPRNG, base64url. Guessing an address is not a strategy. */
 function newToken(): string {
   return randomBytes(24).toString('base64url')
 }
@@ -25,9 +21,11 @@ const schema = z.object({
     .optional()
     .transform((v) => (v ? v : null))
     .refine((v) => v === null || z.string().uuid().safeParse(v).success, 'Choose a valid outlet'),
-  requireName: z.boolean(),
-  showStaffList: z.boolean(),
-  hourlyLimit: z.coerce.number().int().min(0).max(1000),
+  weeksBack: z.coerce.number().int().min(0).max(26),
+  weeksAhead: z.coerce.number().int().min(0).max(26),
+  showHours: z.boolean(),
+  showNotes: z.boolean(),
+  requireCode: z.boolean(),
   expiresAt: z
     .string()
     .trim()
@@ -36,19 +34,21 @@ const schema = z.object({
   isActive: z.boolean(),
 })
 
-export async function saveWastageLink(
+export async function saveRosterLink(
   _previous: ActionResult,
   form: FormData,
 ): Promise<ActionResult> {
   try {
-    const user = await assertPermission('wastage.manage')
+    const user = await assertPermission('roster.share')
     const value = schema.parse({
       id: String(form.get('id') ?? '') || undefined,
       label: String(form.get('label') ?? ''),
       outletId: String(form.get('outletId') ?? ''),
-      requireName: form.get('requireName') === 'on',
-      showStaffList: form.get('showStaffList') === 'on',
-      hourlyLimit: String(form.get('hourlyLimit') ?? '60'),
+      weeksBack: String(form.get('weeksBack') ?? '2'),
+      weeksAhead: String(form.get('weeksAhead') ?? '4'),
+      showHours: form.get('showHours') === 'on',
+      showNotes: form.get('showNotes') === 'on',
+      requireCode: form.get('requireCode') === 'on',
       expiresAt: String(form.get('expiresAt') ?? ''),
       isActive: form.get('isActive') === 'on',
     })
@@ -62,25 +62,25 @@ export async function saveWastageLink(
     const payload = {
       label: value.label,
       outlet_id: value.outletId,
-      require_name: value.requireName,
-      show_staff_list: value.showStaffList,
-      hourly_limit: value.hourlyLimit,
+      weeks_back: value.weeksBack,
+      weeks_ahead: value.weeksAhead,
+      show_hours: value.showHours,
+      show_notes: value.showNotes,
+      require_code: value.requireCode,
       expires_at: expiresAt ? expiresAt.toISOString() : null,
       is_active: value.isActive,
       updated_by: user.id,
     }
 
-    if (value.id) {
-      const { error } = await supabase.from('wastage_links').update(payload).eq('id', value.id)
-      if (error) throw new Error(error.message)
-    } else {
-      const { error } = await supabase
-        .from('wastage_links')
-        .insert({ ...payload, token: newToken(), created_by: user.id })
-      if (error) throw new Error(error.message)
-    }
+    const { error } = value.id
+      ? await supabase.from('roster_links').update(payload).eq('id', value.id)
+      : await supabase
+          .from('roster_links')
+          .insert({ ...payload, token: newToken(), created_by: user.id })
 
-    revalidatePath('/wastage/links')
+    if (error) throw new Error(error.message)
+
+    revalidatePath('/roster/links')
     return { ok: true, message: value.id ? 'Link updated.' : 'Link created.' }
   } catch (error) {
     return actionFailure(error)
@@ -88,28 +88,25 @@ export async function saveWastageLink(
 }
 
 /**
- * Replaces the token on an existing link.
- *
- * Used when a printed QR code has left the building. The old address stops
- * working immediately; every entry already filed through it keeps its history,
- * because entries reference the link row and not the token.
+ * Issues a new address for an existing link. The old one stops working at once,
+ * which is the answer to a printed card that has left the building.
  */
-export async function rotateWastageLink(
+export async function rotateRosterLink(
   _previous: ActionResult,
   form: FormData,
 ): Promise<ActionResult> {
   try {
-    const user = await assertPermission('wastage.manage')
+    const user = await assertPermission('roster.share')
     const id = z.string().uuid().parse(form.get('id'))
 
     const supabase = await createSupabaseServerClient()
     const { error } = await supabase
-      .from('wastage_links')
+      .from('roster_links')
       .update({ token: newToken(), updated_by: user.id })
       .eq('id', id)
     if (error) throw new Error(error.message)
 
-    revalidatePath('/wastage/links')
+    revalidatePath('/roster/links')
     return { ok: true, message: 'A new address was issued. Reprint the QR code.' }
   } catch (error) {
     return actionFailure(error)
