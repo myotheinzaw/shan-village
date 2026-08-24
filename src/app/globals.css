@@ -1,0 +1,94 @@
+@import 'tailwindcss';
+
+/*
+ * Shan Village brand tokens.
+ *
+ * Warm and restaurant-oriented rather than corporate-HR: a deep spice red as
+ * the primary, warm sand surfaces, and a green/amber/red status set that reads
+ * at a glance on a roster grid.
+ */
+@theme {
+  --color-sand-50: #fdfaf6;
+  --color-sand-100: #f8f1e7;
+  --color-sand-200: #efe2d1;
+  --color-sand-300: #e2cdb2;
+  --color-sand-400: #cdaa85;
+
+  --color-spice-50: #fdf3f1;
+  --color-spice-100: #fbe3de;
+  --color-spice-200: #f7c8be;
+  --color-spice-400: #d9694f;
+  --color-spice-500: #c4472c;
+  --color-spice-600: #a63722;
+  --color-spice-700: #862c1d;
+  --color-spice-900: #4e1a11;
+
+  --color-teal-500: #0f766e;
+  --color-teal-600: #0d6058;
+
+  --color-ink-500: #6b6560;
+  --color-ink-700: #3f3a36;
+  --color-ink-900: #241f1c;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-card: 0.875rem;
+}
+
+:root {
+  --background: var(--color-sand-50);
+  --foreground: var(--color-ink-900);
+  --muted: var(--color-ink-500);
+  --border: var(--color-sand-200);
+  --card: #ffffff;
+  --primary: var(--color-spice-600);
+  --primary-foreground: #ffffff;
+  --ring: var(--color-spice-400);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  /* Roster grids scroll horizontally inside their own container; the page must not. */
+  overflow-x: hidden;
+}
+
+/* Visible focus for keyboard users, on every interactive element. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The weekly roster grid: sticky employee column, horizontal scroll on mobile. */
+.roster-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.roster-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--card);
+  box-shadow: 1px 0 0 var(--border);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
