@@ -31,20 +31,22 @@ const TEST_PAGE = makeTestPage(PAGE, path.join(OUT, 'stock-count-testlocks.html'
       try { await fn(); console.log('  ok  ' + name); }
       catch (e) { console.log('  FAIL ' + name + ' -- ' + e.message); await closeAllOn(page); }
     };
-    await stepShipped('ships with owner, admin and chef codes seeded', async () => {
+    await stepShipped('ships with owner, admin, chef and staff codes seeded', async () => {
       const locks = readState(PAGE).locks;
       const roles = Object.keys(locks || {}).sort();
-      if (roles.join(',') !== 'admin,chef,owner') throw new Error('roles are ' + roles.join(','));
+      if (roles.join(',') !== 'admin,chef,owner,staff') throw new Error('roles are ' + roles.join(','));
       for (const r of roles) {
         if (!/^[0-9a-f]{16}$/.test(locks[r].salt)) throw new Error(r + ' salt looks wrong');
         if (!/^[0-9a-f]{64}$/.test(locks[r].hash)) throw new Error(r + ' hash looks wrong');
       }
       const salts = roles.map(r => locks[r].salt);
-      if (new Set(salts).size !== 3) throw new Error('salts are not unique');
+      if (new Set(salts).size !== roles.length) throw new Error('salts are not unique');
+      const hashes = roles.map(r => locks[r].hash);
+      if (new Set(hashes).size !== roles.length) throw new Error('two roles share a hash');
     });
     await stepShipped('no plaintext code anywhere in the page', async () => {
       const html = require('fs').readFileSync(PAGE, 'utf8');
-      if (/Shan(Owner|Admin|Chef)-\d/.test(html)) throw new Error('a plaintext code is in the published page');
+      if (/Shan(Owner|Admin|Chef|Staff)-\d/.test(html)) throw new Error('a plaintext code is in the published page');
     });
     await stepShipped('opens locked: read only, no add button, no setup tab', async () => {
       if (!(await page.evaluate(() => document.body.classList.contains('readonly')))) throw new Error('not read-only');
@@ -323,7 +325,7 @@ const TEST_PAGE = makeTestPage(PAGE, path.join(OUT, 'stock-count-testlocks.html'
     if (!/Test Cold Room/.test(t)) throw new Error('not added');
   });
 
-  console.log('--- the three roles ---');
+  console.log('--- the four roles ---');
   await step('lock -> read only', async () => {
     await page.click('#lockBtn');
     await page.waitForTimeout(300);
@@ -366,6 +368,34 @@ const TEST_PAGE = makeTestPage(PAGE, path.join(OUT, 'stock-count-testlocks.html'
     // setCodes lives on the setup panel, which chef never sees; assert that
     if (await page.locator('#tab-setup').isVisible()) throw new Error('chef reached setup');
   });
+  await step('staff code: counts stock, no setup, no delete', async () => {
+    await page.click('#lockBtn');
+    await page.waitForTimeout(300);
+    await unlock(TEST_CODES.staff);
+    const btn = await page.locator('#lockBtn').innerText();
+    if (!/Staff/.test(btn)) throw new Error('lock button says ' + btn);
+    if (!(await page.locator('#fabAdd').isVisible())) throw new Error('staff cannot add');
+    if (await page.locator('#tab-setup').isVisible()) throw new Error('staff can see setup');
+    await page.click('#stockList .icard');
+    await page.waitForTimeout(250);
+    await page.click('#dEdit');
+    await page.waitForTimeout(300);
+    if (await page.locator('#fDel').isVisible()) throw new Error('staff can see the delete button');
+    await page.click('#fCancel');
+    await page.waitForTimeout(200);
+  });
+  await step('staff can actually save an item', async () => {
+    await page.click('#fabAdd');
+    await page.waitForTimeout(250);
+    await page.fill('#iName', 'Rice bran oil 5L');
+    await page.fill('#iQty', '6');
+    await page.click('#iLocSeg .segb[data-loc="Al Ghurair Store"]');
+    await page.selectOption('#iBy', 'Mariam');
+    await page.click('#fSave');
+    await page.waitForTimeout(350);
+    const t = await page.locator('#stockList').innerText();
+    if (!/Rice bran oil 5L/.test(t)) throw new Error('staff could not save');
+  });
   await step('admin code: full office rights', async () => {
     await page.click('#lockBtn');
     await page.waitForTimeout(300);
@@ -390,18 +420,19 @@ const TEST_PAGE = makeTestPage(PAGE, path.join(OUT, 'stock-count-testlocks.html'
   await step('setting codes rejects a short one and duplicates', async () => {
     await page.click('#setCodes');
     await page.waitForTimeout(300);
+    if (!(await page.locator('#lk-staff').count())) throw new Error('no staff code box on the form');
     await page.fill('#lk-chef', 'short');
     await page.click('#lkGo');
     await page.waitForTimeout(250);
     let t = await page.locator('#lkErr').innerText();
     if (!/at least 6 characters/.test(t)) throw new Error('short code accepted: ' + t);
     await page.fill('#lk-owner', 'duplicate-code');
-    await page.fill('#lk-admin', 'duplicate-code');
+    await page.fill('#lk-staff', 'duplicate-code');
     await page.fill('#lk-chef', '');
     await page.click('#lkGo');
     await page.waitForTimeout(250);
     t = await page.locator('#lkErr').innerText();
-    if (!/different from one another/.test(t)) throw new Error('duplicates accepted: ' + t);
+    if (!/different from the others/.test(t)) throw new Error('duplicates accepted: ' + t);
     await page.click('#lkCancel');
     await page.waitForTimeout(200);
   });

@@ -15,7 +15,7 @@
 
 var S = JSON.parse(document.getElementById('state').textContent);
 var api=null, dl=null, apiReady=false;
-var ROLES=['owner','admin','chef'];
+var ROLES=['owner','admin','chef','staff'];
 var role=null, readOnly=true, dirty=false, publishing=false, pending=[];
 var idleTimer=0;
 var tab='stock', view='cards';
@@ -272,7 +272,7 @@ LOGO,
 /* ---- setup ---- */
 '<section class="panel stack" id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" hidden>',
   '<div class="card card-pad stack">',
-    '<div><h2 class="sec">Lock codes</h2><p class="sec">The same three codes as the duty roster. Chef can count stock. Owner and Admin can also delete items, change these lists and the Drive links, and read the change log.</p></div>',
+    '<div><h2 class="sec">Lock codes</h2><p class="sec">Owner, Admin and Chef are the duty roster\u2019s own codes; Staff is this page\u2019s own. Chef and Staff count stock. Owner and Admin can also delete items, change these lists and the Drive links, and read the change log.</p></div>',
     '<div class="row"><button type="button" class="btn" id="setCodes">Change lock codes</button></div>',
   '</div>',
   '<div class="card card-pad stack" id="drivesCard"></div>',

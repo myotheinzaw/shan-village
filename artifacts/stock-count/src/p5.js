@@ -10,9 +10,11 @@ async function codeHash(code,salt){
   var d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+LOCK_SALT_NS+String(code)));
   return hex(new Uint8Array(d));
 }
-/* Three codes, the same three the duty roster uses. Owner and Admin can
-   do everything and read the change log; Chef counts stock. */
-var ROLE_LABEL={owner:'Owner',admin:'Admin',chef:'Chef'};
+/* Four codes. The first three are the duty roster's own, so nobody carries
+   two sets; Staff is this page's addition, for whoever walks the shelves.
+   Owner and Admin do everything and read the change log. Chef and Staff
+   count stock — the log records which of them it was. */
+var ROLE_LABEL={owner:'Owner',admin:'Admin',chef:'Chef',staff:'Staff'};
 function getLocks(){
   var l=S.locks;
   if(!l)return null;
@@ -35,7 +37,7 @@ function refreshMode(){
   document.body.classList.toggle('is-office',isOffice());
   var n=$('roNote');
   if(n)n.innerHTML = hasLocks()
-    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your code — the same one you use for the duty roster.'
+    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your staff code — or the one you use for the duty roster.'
     : '<strong>Read only.</strong> No lock code has been set yet — ask the office to set one before the count starts.';
   renderLockButton();
   if(tab==='setup'&&!isOffice())selectTab('tab-stock');
@@ -83,7 +85,7 @@ function armIdleLock(){
 
 function askUnlock(){
   var d=sheet('lockSheet',
-    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Your owner, admin or chef code — the same one as the duty roster.</div></div></div>'+
+    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Your staff code, or the owner, admin or chef code you use for the duty roster.</div></div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
     '<div><label class="lbl" for="lkCode">Lock code</label>'+
     '<input class="f pin" id="lkCode" type="password" autocomplete="off"></div>'+
@@ -123,7 +125,8 @@ function askSetCodes(){
     box('owner','everything, and reads the change log')+
     box('admin','everything, and reads the change log')+
     box('chef','counts stock: add and edit items')+
-    '<div class="note">At least 6 characters each, and all three different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
+    box('staff','counts stock: add and edit items')+
+    '<div class="note">At least 6 characters each, and all four different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
     '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
     '<button type="button" class="btn primary" id="lkGo">Save codes</button></div>');
   $('lkCancel').onclick=function(){closeSheet(d)};
@@ -139,7 +142,7 @@ function askSetCodes(){
     if(!any){err('Type at least one code.');return}
     var seen={};
     for(var k in typed){
-      if(seen[typed[k]]){err('All three codes must be different from one another.');return}
+      if(seen[typed[k]]){err('Every code must be different from the others.');return}
       seen[typed[k]]=1;
     }
     var next=Object.assign({},l);

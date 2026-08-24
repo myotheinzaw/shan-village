@@ -16,6 +16,7 @@ const TEST_CODES = {
   owner: 'test-owner-code',
   admin: 'test-admin-code',
   chef: 'test-chef-code',
+  staff: 'test-staff-code',
 };
 
 const hash = (code, salt) =>

@@ -28,24 +28,27 @@ Two capabilities are declared: `artifact` (to republish itself) and
 
 ## Roles
 
-The same three codes as the duty roster, so nobody carries two sets.
+Owner, Admin and Chef are the duty roster's own codes, so nobody carries two
+sets. Staff is this page's own, for whoever walks the shelves.
 
 | | Read | Add / edit stock | Delete, lists, Drive links, change log |
 | --- | --- | --- | --- |
 | No code | ✅ | | |
+| Staff | ✅ | ✅ | |
 | Chef | ✅ | ✅ | |
 | Admin | ✅ | ✅ | ✅ |
 | Owner | ✅ | ✅ | ✅ |
 
-Owner and Admin have identical rights; the pair exists so the change log can
-say which one made a change. Codes are never stored — the page ships with
+Roles pair up on rights — Owner with Admin, Chef with Staff — because the
+distinction that matters day to day is who acted, not what they were
+allowed to do, and the change log records the role behind every publish. Codes are never stored — the page ships with
 only a random salt and a SHA-256 of `salt + '|shan-village-inventory|' +
 code` per role, so reading the source tells you nothing you could type into
 the unlock box. An unlock lives in `sessionStorage` and expires after 20
 minutes of no touching.
 
 To rotate a code: unlock as Owner or Admin, **Setup → Change lock codes**,
-then Publish. To change one before a build, compute a fresh salt and hash
+then Publish. Leaving a box empty keeps that code as it is. To change one before a build, compute a fresh salt and hash
 and edit the `locks` object in `src/build.py` — never put a plaintext code
 in this repository.
 
@@ -117,15 +120,15 @@ Headless Chromium, no test runner:
 
 ```sh
 npm i --no-save playwright-core
-node test/ui.test.js            # 37 checks: form, filters, export, the three roles
+node test/ui.test.js            # 39 checks: form, filters, export, the four roles
 node test/photo-rebuild.test.js # 13 checks: photo shrink, self-rebuild, phone layout
 ```
 
 The tests never need the real codes. `test/helpers.js` copies the built page
 and swaps its `locks` for hashes of throwaway codes, so the plaintext stays
 out of the repository. Two checks run against the *shipped* page instead:
-that all three roles are seeded with a unique salt and a well-formed hash,
-and that no plaintext code appears anywhere in the HTML.
+that all four roles are seeded with a unique salt and a distinct, well-formed
+hash, and that no plaintext code appears anywhere in the HTML.
 
 Both print `ok` / `FAIL` per check and dump any page errors at the end. The
 second one matters most: it rebuilds the document the way `publish()` does,
