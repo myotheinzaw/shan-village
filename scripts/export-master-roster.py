@@ -166,6 +166,8 @@ def main():
     ap.add_argument("--state", required=True)
     ap.add_argument("--history", default="data/roster-history.json")
     ap.add_argument("--out", default="Shan Village - Master Roster.xlsx")
+    ap.add_argument("--compact", action="store_true",
+                    help="leave out the per-day Shift detail sheet (much smaller file)")
     ap.add_argument("--generated-at", default=None,
                     help="ISO timestamp for the cover sheet (default: now, UTC)")
     args = ap.parse_args()
@@ -268,6 +270,9 @@ def main():
     detail.sort(key=lambda x: (x[0], x[1]))
 
     ws = wb.create_sheet("Shift detail")
+    if args.compact:
+        wb.remove(ws)
+        ws = wb.create_sheet("_tmp")
     header_row(ws, 1, ["Date", "Day", "Week starting", "Employee", "Position",
                        "Status", "Shift", "Start", "End", "2nd start", "2nd end",
                        "Hours", "Normal", "Overtime", "As written originally"],
@@ -285,6 +290,9 @@ def main():
             ws.cell(row=i, column=14).fill = OT_FILL
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = "A1:O%d" % max(1, len(detail) + 1)
+
+    if args.compact:
+        wb.remove(wb["_tmp"])
 
     # ----------------------------------------------- monthly overtime ---
     months = {}
