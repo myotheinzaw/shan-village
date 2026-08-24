@@ -1,0 +1,1565 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shan Village Stock Count</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><style id="appStyle">:root{
+--bg:#FAF5EA;--surface:#FFFFFF;--surface-sunken:#F3ECDC;--border:#E3D7BE;--border-strong:#D2C2A2;
+--text:#241C15;--text-muted:#756B58;--text-faint:#9C917A;
+--accent:#C1501F;--accent-strong:#9C2B1F;--accent-soft:#F4DEC7;--gold:#A9781E;
+--good:#2F7D4F;--good-soft:#E1F0E4;--warn:#A9781E;--warn-soft:#F6ECD3;
+--critical:#9C2B1F;--critical-soft:#F7E1DA;--missing:#756B58;--missing-soft:#ECE5D5;
+--header-bg:#171310;--header-text:#F7EFDD;--header-sub:#C9BB9C;--header-meta:#B8AC93;--header-accent:#E8C77A;
+--shadow:0 1px 2px rgba(36,28,21,.06),0 8px 24px -12px rgba(36,28,21,.18);--radius:10px;
+--font-display:'Fraunces',Georgia,serif;--font-body:'IBM Plex Sans','Segoe UI',Arial,sans-serif;
+--font-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#1C1712;--surface:#26201A;--surface-sunken:#221D17;--border:#40372A;--border-strong:#544732;
+--text:#F2EBDC;--text-muted:#C3B79E;--text-faint:#8F8368;
+--accent:#E38A46;--accent-strong:#E0654A;--accent-soft:#43291A;--gold:#D9B159;
+--good:#6FBF8B;--good-soft:#1E2E22;--warn:#D9B159;--warn-soft:#332A15;
+--critical:#E0654A;--critical-soft:#3A1F1A;--missing:#9C917A;--missing-soft:#302A22;
+--header-bg:#15110C;--header-text:#F2EBDC;--header-sub:#B8AC93;--header-meta:#9C917A;--header-accent:#D9B159;
+--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);}}
+:root[data-theme="dark"]{
+--bg:#1C1712;--surface:#26201A;--surface-sunken:#221D17;--border:#40372A;--border-strong:#544732;
+--text:#F2EBDC;--text-muted:#C3B79E;--text-faint:#8F8368;
+--accent:#E38A46;--accent-strong:#E0654A;--accent-soft:#43291A;--gold:#D9B159;
+--good:#6FBF8B;--good-soft:#1E2E22;--warn:#D9B159;--warn-soft:#332A15;
+--critical:#E0654A;--critical-soft:#3A1F1A;--missing:#9C917A;--missing-soft:#302A22;
+--header-bg:#15110C;--header-text:#F2EBDC;--header-sub:#B8AC93;--header-meta:#9C917A;--header-accent:#D9B159;
+--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;text-wrap:balance}
+table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+:where(button,select,input,textarea,a,summary,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.app-header{background:var(--header-bg);color:var(--header-text);padding:11px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--accent);flex-wrap:wrap}
+.app-header .mark{width:46px;height:46px;flex-shrink:0}
+.app-header h1{font-size:18px;color:var(--header-text);letter-spacing:.2px}
+.app-header .sub{font-size:11.5px;color:var(--header-sub)}
+.app-header .right{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pubwrap{display:flex;align-items:center;gap:12px}
+.stamp{font-size:11px;color:var(--header-meta);text-align:right;line-height:1.45;white-space:nowrap}
+.stamp strong{color:var(--header-accent);font-weight:600;display:block;font-size:11.5px}
+.btn-pub{appearance:none;font-family:var(--font-body);font-size:13px;font-weight:700;padding:9px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;gap:7px}
+.btn-pub:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+.btn-pub:disabled{opacity:.45;cursor:default}
+.btn-pub .cnt{background:rgba(255,255,255,.25);border-radius:999px;padding:0 7px;font-size:11px}
+.btn-pub.clean{background:transparent;border-color:rgba(255,255,255,.18);color:var(--header-meta);font-weight:600}
+.btn-pub.busy{opacity:.7;cursor:default}
+.btn-lock{appearance:none;font-family:var(--font-body);font-size:12px;font-weight:600;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--header-meta);cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.btn-lock:hover{color:var(--header-text);border-color:rgba(255,255,255,.34)}
+.btn-lock.open{color:#8FD3A6;border-color:rgba(143,211,166,.45);background:rgba(143,211,166,.10)}
+.btn-lock svg{width:13px;height:13px;flex-shrink:0}
+.themer{display:flex;gap:2px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:2px}
+.themer button{appearance:none;background:none;border:none;color:var(--header-meta);width:29px;height:25px;border-radius:6px;cursor:pointer;display:grid;place-items:center;font-family:var(--font-body);font-size:10.5px;font-weight:700;padding:0}
+.themer button:hover{color:var(--header-text)}
+.themer button[aria-pressed="true"]{background:rgba(255,255,255,.17);color:var(--header-text)}
+.themer svg{width:14px;height:14px;display:block}
+
+nav.tabs{display:flex;gap:2px;background:var(--surface-sunken);border-bottom:1px solid var(--border);padding:0 14px;overflow-x:auto}
+nav.tabs button{appearance:none;background:none;border:none;border-bottom:3px solid transparent;color:var(--text-muted);font-size:13.5px;font-weight:600;padding:12px 15px 10px;cursor:pointer;white-space:nowrap;font-family:var(--font-body)}
+nav.tabs button:hover{color:var(--text)}
+nav.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+nav.tabs button.admin-only{display:none}
+body.is-admin nav.tabs button.admin-only{display:block}
+
+main{padding:18px 20px 92px;max-width:1500px;margin:0 auto}
+.panel[hidden]{display:none}
+.stack{display:flex;flex-direction:column;gap:17px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-pad{padding:13px 15px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spacer{margin-left:auto}
+.muted{color:var(--text-muted)}.faint{color:var(--text-faint)}
+h2.sec{font-size:17px;margin-bottom:2px}
+p.sec{margin:0;font-size:12.5px;color:var(--text-muted)}
+
+button.btn{appearance:none;font-family:var(--font-body);font-size:13px;font-weight:600;padding:8px 13px;border-radius:7px;border:1px solid var(--border);background:var(--surface-sunken);color:var(--text);cursor:pointer}
+button.btn:hover{border-color:var(--border-strong)}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+button.btn.danger{color:var(--critical);border-color:transparent;background:transparent}
+button.btn.danger:hover{background:var(--critical-soft)}
+button.btn:disabled{opacity:.4;cursor:default}
+button.btn svg{width:15px;height:15px;flex-shrink:0}
+.ph-actions button.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+a.btn{display:inline-block;text-decoration:none;font-family:var(--font-body);font-size:13px;font-weight:600;padding:8px 13px;border-radius:7px;border:1px solid var(--border);background:var(--surface-sunken);color:var(--text)}
+a.btn:hover{border-color:var(--border-strong)}
+input.f,select.f,textarea.f{font-family:var(--font-body);font-size:15px;padding:9px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);min-width:0;width:100%}
+textarea.f{resize:vertical;min-height:58px}
+input.f::placeholder,textarea.f::placeholder{color:var(--text-faint)}
+label.lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);display:block;margin-bottom:4px}
+.req{color:var(--accent)}
+.pin{font-family:var(--font-mono);font-size:20px;letter-spacing:.22em;text-align:center;padding:11px 12px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:11px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow)}
+.tile .label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:600}
+.tile .value{font-family:var(--font-mono);font-size:23px;font-weight:600;margin-top:3px;line-height:1.1}
+.tile .foot{font-size:11px;color:var(--text-muted);margin-top:2px}
+.tile.alert{border-left:3px solid var(--critical)}
+.tile.alert .value{color:var(--critical)}
+.tile.warnt{border-left:3px solid var(--warn)}
+.tile.warnt .value{color:var(--warn)}
+
+.wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow-x:auto}
+table.plain{width:100%;min-width:560px}
+table.plain th,table.plain td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border)}
+table.plain thead th{background:var(--surface-sunken);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:700;position:sticky;top:0;z-index:1}
+table.plain td.n,table.plain th.n{text-align:right;font-family:var(--font-mono)}
+table.plain tbody tr.clickable{cursor:pointer}
+table.plain tbody tr.clickable:hover{background:var(--surface-sunken)}
+
+.note{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:var(--radius);padding:11px 14px;font-size:12.5px;color:var(--text-muted)}
+.note strong{color:var(--text)}
+.note.accent{border-left-color:var(--accent)}
+.note.live{border-left-color:var(--good)}
+.note.bad{border-left-color:var(--critical)}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-sunken);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good);border-color:color-mix(in srgb,var(--good) 25%,transparent)}
+.pill.warn{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.pill.bad{background:var(--critical-soft);color:var(--critical);border-color:color-mix(in srgb,var(--critical) 30%,transparent)}
+.pill.acc{background:var(--accent-soft);color:var(--accent-strong);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+.pill.off{background:var(--missing-soft);color:var(--missing);border-color:transparent}
+
+/* filter bar */
+.filterbar{display:flex;flex-direction:column;gap:9px}
+.fbtop{flex-wrap:wrap;gap:8px}
+.filterbar #q{flex:1 1 220px;max-width:430px}
+.filterbar #sortBy{flex:0 0 auto;width:auto}
+.viewseg{display:flex;gap:5px;flex:0 0 auto;margin-left:auto}
+.chiprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chiprow .cap{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:700;margin-right:2px}
+button.chip{appearance:none;font-family:var(--font-body);font-size:12.5px;font-weight:600;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;white-space:nowrap}
+button.chip:hover{border-color:var(--border-strong);color:var(--text)}
+button.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+button.chip .n{font-family:var(--font-mono);font-size:11px;opacity:.7;margin-left:4px}
+button.chip[aria-pressed="true"] .n{opacity:.85}
+
+/* item cards (phone) */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:11px}
+.icard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:11px 13px;display:flex;gap:11px;cursor:pointer;text-align:left;font-family:var(--font-body);color:var(--text);width:100%;appearance:none}
+.icard:hover{border-color:var(--border-strong)}
+.icard.exp{border-left:3px solid var(--critical)}
+.icard.soon{border-left:3px solid var(--warn)}
+.icard .thumb{width:56px;height:56px;border-radius:7px;object-fit:cover;flex-shrink:0;background:var(--surface-sunken);border:1px solid var(--border)}
+.icard .thumb.none{display:grid;place-items:center;color:var(--text-faint);font-size:19px}
+.icard .body{min-width:0;flex:1}
+.icard .nm{font-weight:700;font-size:14.5px;line-height:1.25;word-break:break-word}
+.icard .qt{font-family:var(--font-mono);font-size:13px;color:var(--accent-strong);font-weight:600;margin-top:1px}
+.icard .meta{font-size:11.5px;color:var(--text-muted);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.empty{padding:36px 18px;text-align:center;color:var(--text-muted);font-size:13.5px}
+.empty .big{font-family:var(--font-display);font-size:17px;color:var(--text);margin-bottom:4px}
+
+/* add button */
+.fab{position:fixed;right:18px;bottom:18px;z-index:40;appearance:none;font-family:var(--font-body);font-size:14.5px;font-weight:700;padding:14px 20px;border-radius:999px;border:none;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 10px 26px -8px rgba(0,0,0,.5);display:flex;align-items:center;gap:8px}
+.fab:hover{background:var(--accent-strong)}
+.fab svg{width:17px;height:17px}
+body.readonly .fab{display:none}
+
+/* sheets */
+dialog.sheet{border:1px solid var(--border);border-radius:12px;padding:0;background:var(--surface);color:var(--text);box-shadow:0 24px 60px -20px rgba(0,0,0,.4);max-width:440px;width:calc(100vw - 26px)}
+dialog.sheet.wide{max-width:660px}
+dialog.sheet::backdrop{background:rgba(23,19,16,.5)}
+.sheet-head{padding:14px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
+.sheet-head h3{font-size:16px}
+.sheet-head .who{font-size:12px;color:var(--text-muted);margin-top:2px}
+.sheet-head .x{margin-left:auto;appearance:none;background:none;border:none;color:var(--text-faint);font-size:22px;line-height:1;cursor:pointer;padding:0 2px}
+.sheet-head .x:hover{color:var(--text)}
+.sheet-body{padding:14px 16px;display:flex;flex-direction:column;gap:14px;max-height:66vh;overflow-y:auto}
+.sheet-foot{padding:11px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fgrid .full{grid-column:1/-1}
+@media (max-width:520px){.fgrid{grid-template-columns:1fr}.fgrid .half{grid-column:auto}}
+.qtyrow{display:grid;grid-template-columns:1fr 116px;gap:8px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+button.segb{appearance:none;font-family:var(--font-body);font-size:13px;font-weight:600;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface-sunken);color:var(--text);cursor:pointer;flex:1;min-width:96px}
+button.segb:hover{border-color:var(--accent);color:var(--accent)}
+button.segb[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+details.more{border-top:1px dashed var(--border);padding-top:12px}
+details.more>summary{cursor:pointer;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);list-style:none}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:"+ ";font-family:var(--font-mono)}
+details.more[open]>summary::before{content:"– "}
+details.more .fgrid{margin-top:12px}
+
+/* photo */
+.photobox{display:flex;gap:11px;align-items:flex-start}
+.photobox .prev{width:92px;height:92px;border-radius:9px;object-fit:cover;border:1px solid var(--border);background:var(--surface-sunken);flex-shrink:0}
+.photobox .ph-actions{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+.dropzone{width:92px;height:92px;border-radius:9px;border:1.5px dashed var(--border-strong);background:var(--surface-sunken);display:grid;place-items:center;color:var(--text-faint);flex-shrink:0}
+.dropzone svg{width:26px;height:26px}
+.bigphoto{width:100%;border-radius:9px;border:1px solid var(--border);display:block}
+
+/* storage meter */
+.meter{height:9px;border-radius:999px;background:var(--surface-sunken);overflow:hidden;border:1px solid var(--border)}
+.meter i{display:block;height:100%;background:var(--good);border-radius:999px}
+.meter.warn i{background:var(--warn)}
+.meter.bad i{background:var(--critical)}
+
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13.5px;align-items:baseline}
+.kv dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:700;white-space:nowrap}
+.kv dd{margin:0;word-break:break-word}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:minmax(96px,150px) 1fr auto;gap:10px;align-items:center;font-size:13px}
+.bar .track{height:20px;background:var(--surface-sunken);border-radius:5px;overflow:hidden}
+.bar .fill{height:100%;background:var(--accent);border-radius:5px;min-width:2px}
+.bar .amt{font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);white-space:nowrap}
+
+.ro-only{display:none}
+body.readonly .ro-only{display:block}
+body.readonly .editor-only{display:none!important}
+.admin-only{display:none}
+body.is-admin .admin-only{display:revert}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--header-bg);color:var(--header-text);padding:10px 16px;border-radius:9px;font-size:13px;box-shadow:0 12px 30px -10px rgba(0,0,0,.5);z-index:99;max-width:calc(100vw - 24px);text-align:center}
+#toast[hidden]{display:none}
+
+@media (max-width:640px){
+  main{padding:14px 10px 92px}
+  .app-header{padding:10px 12px;gap:10px}
+  .app-header .mark{width:38px;height:38px}
+  .app-header h1{font-size:16px}
+  .app-header .right{width:100%;margin-left:0;justify-content:space-between}
+  .pubwrap{width:100%;justify-content:space-between}
+  .stamp{text-align:left}
+  /* Search gets its own line; sort and view share the next one. */
+  .filterbar #q{flex:1 1 100%;max-width:none}
+  .filterbar #sortBy{flex:1 1 auto}
+  .viewseg{margin-left:0}
+  .chiprow{gap:5px}
+  button.chip{padding:6px 10px;font-size:12px}
+  dialog.sheet{max-width:none;width:100vw;height:100dvh;max-height:100dvh;border-radius:0;border:none}
+  .sheet-body{max-height:none;flex:1}
+  dialog.sheet{display:none}
+  dialog.sheet[open]{display:flex;flex-direction:column}
+}
+@media print{
+  nav.tabs,.app-header,#toast,.fab,.filterbar,.editor-only,.note{display:none!important}
+  body{background:#fff;font-size:11px}
+  main{padding:0;max-width:none}
+  .wrap{box-shadow:none;border-color:#999;overflow:visible}
+  .panel[hidden]{display:none!important}
+  @page{size:landscape;margin:10mm}
+}
+
+/* Each viewer's own light / dark choice, held on <body> so it never
+   fights the claude.ai viewer's own data-theme stamp on <html>. */
+body[data-mode="light"]{
+--bg:#FAF5EA;--surface:#FFFFFF;--surface-sunken:#F3ECDC;--border:#E3D7BE;--border-strong:#D2C2A2;
+--text:#241C15;--text-muted:#756B58;--text-faint:#9C917A;
+--accent:#C1501F;--accent-strong:#9C2B1F;--accent-soft:#F4DEC7;--gold:#A9781E;
+--good:#2F7D4F;--good-soft:#E1F0E4;--warn:#A9781E;--warn-soft:#F6ECD3;
+--critical:#9C2B1F;--critical-soft:#F7E1DA;--missing:#756B58;--missing-soft:#ECE5D5;
+--header-bg:#171310;--header-text:#F7EFDD;--header-sub:#C9BB9C;--header-meta:#B8AC93;--header-accent:#E8C77A;
+--shadow:0 1px 2px rgba(36,28,21,.06),0 8px 24px -12px rgba(36,28,21,.18);
+}
+body[data-mode="dark"]{
+--bg:#1C1712;--surface:#26201A;--surface-sunken:#221D17;--border:#40372A;--border-strong:#544732;
+--text:#F2EBDC;--text-muted:#C3B79E;--text-faint:#8F8368;
+--accent:#E38A46;--accent-strong:#E0654A;--accent-soft:#43291A;--gold:#D9B159;
+--good:#6FBF8B;--good-soft:#1E2E22;--warn:#D9B159;--warn-soft:#332A15;
+--critical:#E0654A;--critical-soft:#3A1F1A;--missing:#9C917A;--missing-soft:#302A22;
+--header-bg:#15110C;--header-text:#F2EBDC;--header-sub:#B8AC93;--header-meta:#9C917A;--header-accent:#D9B159;
+--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);
+}
+@media print{body{
+--bg:#FAF5EA;--surface:#FFFFFF;--surface-sunken:#F3ECDC;--border:#E3D7BE;--border-strong:#D2C2A2;
+--text:#241C15;--text-muted:#756B58;--text-faint:#9C917A;
+--accent:#C1501F;--accent-strong:#9C2B1F;--accent-soft:#F4DEC7;--gold:#A9781E;
+--good:#2F7D4F;--good-soft:#E1F0E4;--warn:#A9781E;--warn-soft:#F6ECD3;
+--critical:#9C2B1F;--critical-soft:#F7E1DA;--missing:#756B58;--missing-soft:#ECE5D5;
+}}
+</style></head><body><div id="root"></div>
+<script id="state" type="application/json">{"v": 1, "rev": 0, "pub": null, "seq": 0, "locks": null, "drive": "https://drive.google.com/drive/folders/1N-185axMNfrq49iXSlLTH1iF-mo15uRy?usp=sharing", "drivePhotos": "", "photoFolder": "Stock Count Photos", "locations": ["Al Ghurair Store", "Al Ghurair Kitchen", "Home Al Quoz"], "categories": ["Rice & Noodles", "Dry Goods", "Spices & Masala", "Sauces & Oils", "Vegetables", "Fruits", "Meat & Poultry", "Seafood", "Dairy & Eggs", "Frozen", "Beverages", "Bakery", "Packaging & Disposables", "Cleaning & Chemicals", "Equipment & Utensils", "Other"], "units": ["kg", "g", "L", "ml", "pcs", "pack", "box", "carton", "bag", "bottle", "can", "tray", "tin", "bundle", "dozen"], "items": [], "photos": {}, "log": []}</script>
+<script id="app">(function(){
+'use strict';
+
+/* =====================================================================
+   Shan Village Stock Count
+   ---------------------------------------------------------------------
+   One page, one link. A counter opens it on a phone in the store,
+   unlocks with a code, and logs what is on the shelf. Everything the
+   team types is written back into this page when Publish is pressed,
+   so the next person to open the link sees the same list.
+
+   State lives in the <script id="state"> JSON below. The page rebuilds
+   itself from CSS + this script + that JSON in buildDocument().
+   ===================================================================== */
+
+var S = JSON.parse(document.getElementById('state').textContent);
+var api=null, dl=null, apiReady=false;
+var role=null, readOnly=true, dirty=false, publishing=false, pending=[];
+var idleTimer=0;
+var tab='stock', view='cards';
+var f={q:'',loc:'All',stat:'All',cat:'All',sort:'new'};
+var editing=null;          /* item id being edited, or null for a new one */
+var draftPhoto=undefined;  /* undefined = untouched, null = cleared, string = new */
+
+var LOCK_SALT_NS='|shan-village-inventory|';
+var PHOTO_MAX=1000;        /* longest side, px */
+var PHOTO_Q=0.55;
+var SOFT_LIMIT=9*1024*1024, HARD_LIMIT=13*1024*1024;
+
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function pad(n){return n<10?'0'+n:''+n}
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function parseISO(s){var p=String(s||'').split('-');return new Date(+p[0],+p[1]-1,+p[2])}
+function daysTo(iso){
+  if(!iso)return null;
+  var a=parseISO(todayISO()), b=parseISO(iso);
+  return Math.round((b-a)/86400000);
+}
+function dnice(iso){
+  if(!iso)return '';
+  var d=parseISO(iso);
+  if(isNaN(d))return iso;
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate()+' '+M[d.getMonth()]+' '+d.getFullYear();
+}
+function stampText(iso){
+  if(!iso)return 'Not published yet';
+  var d=new Date(iso);
+  if(isNaN(d))return 'Not published yet';
+  return dnice(d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()))+', '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function num(v){var n=parseFloat(v);return isFinite(n)?n:0}
+function fmtQty(n){
+  if(!isFinite(n))return '0';
+  return (Math.round(n*1000)/1000).toLocaleString('en-US',{maximumFractionDigits:3});
+}
+function money(n){
+  return (Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function toast(msg,ms){
+  var t=$('toast'); t.textContent=msg; t.hidden=false;
+  clearTimeout(toast._t); toast._t=setTimeout(function(){t.hidden=true},ms||2600);
+}
+
+/* ------------------------------- items ------------------------------ */
+
+function items(){ return S.items||(S.items=[]) }
+function photoOf(id){ return (S.photos&&S.photos[id])||null }
+function findItem(id){ var a=items(); for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i]; return null }
+function nextId(){ S.seq=(S.seq||0)+1; return 'I'+String(S.seq).padStart(4,'0') }
+
+/* Expiry drives most of what the page shows, so it is computed in one
+   place and nowhere else. */
+function statusOf(it){
+  if(it.cond==='Expired'||it.cond==='To discard')return 'expired';
+  if(it.cond==='Damaged')return 'week';
+  var d=daysTo(it.expiry);
+  if(d===null)return 'ok';
+  if(d<0)return 'expired';
+  if(d<=7)return 'week';
+  if(d<=30)return 'month';
+  return 'ok';
+}
+function belowPar(it){ return num(it.par)>0 && num(it.qty)<num(it.par) }
+function valueOf(it){ return num(it.qty)*num(it.cost) }
+var STATUS_LABEL={expired:'Expired',week:'7 days',month:'30 days',ok:'Good'};
+var STATUS_PILL={expired:'bad',week:'bad',month:'warn',ok:'good'};
+function statusPill(it){
+  var s=statusOf(it), d=daysTo(it.expiry), txt;
+  if(s==='expired')txt = (d!==null&&d<0) ? 'Expired '+Math.abs(d)+'d ago' : (it.cond||'Expired');
+  else if(s==='week')txt = it.cond==='Damaged' ? 'Damaged' : 'Expires in '+d+'d';
+  else if(s==='month')txt = 'Expires in '+d+'d';
+  else txt = it.expiry ? 'Expires '+dnice(it.expiry) : 'No expiry date';
+  var cls = (s==='ok'&&!it.expiry) ? 'off' : STATUS_PILL[s];
+  return '<span class="pill '+cls+'">'+esc(txt)+'</span>';
+}
+
+function filtered(){
+  var q=f.q.trim().toLowerCase();
+  var out=items().filter(function(it){
+    if(f.loc!=='All'&&it.loc!==f.loc)return false;
+    if(f.cat!=='All'&&it.cat!==f.cat)return false;
+    if(f.stat==='Expired'&&statusOf(it)!=='expired')return false;
+    if(f.stat==='Soon'){var s=statusOf(it); if(s!=='week'&&s!=='month')return false}
+    if(f.stat==='Low'&&!belowPar(it))return false;
+    if(f.stat==='Today'&&it.invDate!==todayISO())return false;
+    if(q){
+      var hay=[it.name,it.cat,it.loc,it.sub,it.remark,it.batch,it.supplier,it.by].join(' ').toLowerCase();
+      if(hay.indexOf(q)<0)return false;
+    }
+    return true;
+  });
+  var rank={expired:0,week:1,month:2,ok:3};
+  out.sort(function(a,b){
+    if(f.sort==='name')return a.name.localeCompare(b.name);
+    if(f.sort==='value')return valueOf(b)-valueOf(a);
+    if(f.sort==='expiry'){
+      var ra=rank[statusOf(a)],rb=rank[statusOf(b)];
+      if(ra!==rb)return ra-rb;
+      return String(a.expiry||'9999').localeCompare(String(b.expiry||'9999'));
+    }
+    return String(b.t||'').localeCompare(String(a.t||''));
+  });
+  return out;
+}
+
+function storageBytes(){
+  try{ return new Blob([JSON.stringify(S)]).size }catch(e){ return JSON.stringify(S).length }
+}
+
+/* ------------------------------- shell ------------------------------ */
+
+var LOGO = [
+'<svg class="mark" viewBox="0 0 200 200" role="img" aria-label="Shan Village"><defs>',
+'  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">',
+'    <stop offset="0" stop-color="#F7E39A"/><stop offset=".28" stop-color="#E3BE63"/>',
+'    <stop offset=".55" stop-color="#B8860F"/><stop offset=".78" stop-color="#E9C86E"/>',
+'    <stop offset="1" stop-color="#8A5F12"/>',
+'  </linearGradient>',
+'  <linearGradient id="goldFlat" x1="0" y1="0" x2="0" y2="1">',
+'    <stop offset="0" stop-color="#E8C777"/><stop offset=".5" stop-color="#C79A38"/>',
+'    <stop offset="1" stop-color="#A97C1E"/>',
+'  </linearGradient>',
+'  <path id="arc" d="M30 104 A70 70 0 0 1 170 104"/>',
+'  <clipPath id="hutClip"><path d="M100 33 L173 99 L154 99 L154 134 L46 134 L46 99 L27 99 Z"/></clipPath>',
+'  <clipPath id="discClip"><circle cx="100" cy="100" r="92"/></clipPath>',
+'</defs>',
+'<circle cx="100" cy="100" r="99" fill="#F0873A"/>',
+'<circle cx="100" cy="100" r="92" fill="#000"/>',
+'<g clip-path="url(#hutClip)">',
+'  <rect x="20" y="28" width="160" height="112" fill="#000"/>',
+'  <rect x="20" y="38"  width="160" height="8" fill="#F0873A"/>',
+'  <rect x="20" y="49"  width="160" height="8" fill="#E63329"/>',
+'  <rect x="20" y="60"  width="160" height="8" fill="#F0873A"/>',
+'  <rect x="20" y="71"  width="160" height="8" fill="#E63329"/>',
+'  <rect x="20" y="82"  width="160" height="8" fill="#F0873A"/>',
+'  <rect x="20" y="93"  width="160" height="8" fill="#E63329"/>',
+'  <rect x="20" y="104" width="160" height="8" fill="#F0873A"/>',
+'  <rect x="20" y="115" width="160" height="8" fill="#E63329"/>',
+'  <rect x="20" y="126" width="160" height="8" fill="#F0873A"/>',
+'</g>',
+'<path d="M100 33 L173 99 L154 99 L154 134 L46 134 L46 99 L27 99 Z"',
+'      fill="none" stroke="#E63329" stroke-width="3.4" stroke-linejoin="round"/>',
+'<g clip-path="url(#discClip)">',
+'  <rect x="8" y="148" width="184" height="9" fill="url(#goldFlat)"/>',
+'  <rect x="8" y="161" width="184" height="9" fill="url(#goldFlat)"/>',
+'  <rect x="8" y="174" width="184" height="9" fill="url(#goldFlat)"/>',
+'  <rect x="8" y="187" width="184" height="9" fill="url(#goldFlat)"/>',
+'</g>',
+'<text font-family="Georgia,\'Times New Roman\',serif" font-size="27" font-weight="700"',
+'      fill="url(#gold)" stroke="#4A3208" stroke-width=".5" letter-spacing="2.4">',
+'  <textPath href="#arc" startOffset="50%" text-anchor="middle">SHAN VILLAGE</textPath>',
+'</text>',
+'<text x="100" y="120" font-family="Georgia,\'Times New Roman\',serif" font-size="78"',
+'      font-style="italic" font-weight="700" text-anchor="middle"',
+'      fill="url(#gold)" stroke="#FFF7E4" stroke-width="2.6" paint-order="stroke">SV</text></svg>'
+].join('');
+
+var IC_SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/></svg>';
+var IC_MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.3A8.4 8.4 0 0 1 9.7 4a8.4 8.4 0 1 0 10.3 10.3z"/></svg>';
+var IC_CAM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>';
+var IC_PLUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+
+var SHELL = [
+'<header class="app-header">',
+LOGO,
+'<div><h1>Stock Count</h1><div class="sub">Shan Village &middot; Al Ghurair &amp; Al Quoz</div></div>',
+'<div class="right">',
+  '<div class="themer" role="group" aria-label="Light or dark">',
+    '<button type="button" data-mode="light" title="Light" aria-label="Light">'+IC_SUN+'</button>',
+    '<button type="button" data-mode="dark" title="Dark" aria-label="Dark">'+IC_MOON+'</button>',
+    '<button type="button" data-mode="auto" title="Follow device" aria-label="Follow device">AUTO</button>',
+  '</div>',
+  '<button class="btn-lock" id="lockBtn" hidden></button>',
+  '<div class="pubwrap">',
+    '<div class="stamp" id="pubStamp"></div>',
+    '<button class="btn-pub" id="pubBtn" hidden></button>',
+  '</div>',
+'</div></header>',
+
+'<nav class="tabs" role="tablist" aria-label="Sections">',
+  '<button type="button" role="tab" id="tab-stock">Stock</button>',
+  '<button type="button" role="tab" id="tab-overview">Overview</button>',
+  '<button type="button" role="tab" id="tab-export">Excel &amp; photos</button>',
+  '<button type="button" role="tab" id="tab-setup" class="admin-only">Setup</button>',
+'</nav>',
+
+'<main>',
+
+/* ---- stock ---- */
+'<section class="panel stack" id="panel-stock" role="tabpanel" aria-labelledby="tab-stock">',
+  '<div class="note ro-only" id="roNote"></div>',
+  '<div class="card card-pad filterbar">',
+    '<div class="row fbtop">',
+      '<input class="f" id="q" type="search" placeholder="Search item, remark, batch, supplier&hellip;">',
+      '<select class="f" id="sortBy" aria-label="Sort the list">',
+        '<option value="new">Newest first</option>',
+        '<option value="expiry">Expiry first</option>',
+        '<option value="name">Name A&ndash;Z</option>',
+        '<option value="value">Highest value</option>',
+      '</select>',
+      '<div class="viewseg" role="group" aria-label="How to show the list">',
+        '<button type="button" class="chip" id="vCards" aria-pressed="true">Cards</button>',
+        '<button type="button" class="chip" id="vTable" aria-pressed="false">Table</button>',
+      '</div>',
+    '</div>',
+    '<div class="chiprow" id="chipsLoc"></div>',
+    '<div class="chiprow" id="chipsStat"></div>',
+    '<div class="chiprow" id="chipsCat"></div>',
+  '</div>',
+  '<div class="row"><div class="muted" id="stockCount"></div></div>',
+  '<div id="stockList"></div>',
+'</section>',
+
+/* ---- overview ---- */
+'<section class="panel stack" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" hidden>',
+  '<div class="tiles" id="ovTiles"></div>',
+  '<div class="card">',
+    '<div class="card-pad"><h2 class="sec">Needs attention</h2><p class="sec">Expired, expiring within 30 days, or below the minimum you set.</p></div>',
+    '<div class="wrap" style="border:0;border-top:1px solid var(--border);border-radius:0;box-shadow:none"><table class="plain" id="actionTable"></table></div>',
+  '</div>',
+  '<div class="card card-pad stack"><h2 class="sec">Stock value by location</h2><div class="bars" id="barsLoc"></div></div>',
+  '<div class="card card-pad stack"><h2 class="sec">Items by category</h2><div class="bars" id="barsCat"></div></div>',
+'</section>',
+
+/* ---- export ---- */
+'<section class="panel stack" id="panel-export" role="tabpanel" aria-labelledby="tab-export" hidden>',
+  '<div class="card card-pad stack">',
+    '<div><h2 class="sec">Send the count to Excel</h2><p class="sec">A .csv file. Double-click it and Excel opens it with every column filled in.</p></div>',
+    '<div class="row">',
+      '<button type="button" class="btn primary" id="csvAll">Download full count</button>',
+      '<button type="button" class="btn" id="csvAction">Download attention list</button>',
+      '<button type="button" class="btn" id="copyTsv">Copy to clipboard</button>',
+      '<a class="btn" id="driveLink" target="_blank" rel="noopener">Open the Drive folder</a>',
+    '</div>',
+    '<div class="note">The .csv belongs in the <strong>main</strong> Drive folder. Downloads land in your phone or computer’s Downloads folder first. <strong>Copy to clipboard</strong> is the backup: paste straight into an open sheet with Ctrl+V.</div>',
+  '</div>',
+  '<div class="card card-pad stack">',
+    '<div><h2 class="sec">Photos</h2><p class="sec">Every photo taken during the count, saved one by one so you can put them in Drive.</p></div>',
+    '<div class="row">',
+      '<button type="button" class="btn primary" id="savePhotos">Save all photos</button>',
+      '<a class="btn" id="drivePhotosLink" target="_blank" rel="noopener">Open the photos folder</a>',
+    '</div>',
+    '<div class="note" id="photoHow"></div>',
+    '<div id="photoMeter"></div>',
+  '</div>',
+'</section>',
+
+/* ---- setup ---- */
+'<section class="panel stack" id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" hidden>',
+  '<div class="card card-pad stack">',
+    '<div><h2 class="sec">Lock codes</h2><p class="sec">Two codes. The counter code can add and edit stock. The admin code can also delete, change these lists, and see the log.</p></div>',
+    '<div class="row"><button type="button" class="btn" id="setCodes">Change lock codes</button></div>',
+  '</div>',
+  '<div class="card card-pad stack" id="drivesCard"></div>',
+  '<div class="card card-pad stack" id="listsCard"></div>',
+  '<div class="card">',
+    '<div class="card-pad"><h2 class="sec">Change log</h2><p class="sec">Every publish, and what changed in it.</p></div>',
+    '<div class="wrap" style="border:0;border-top:1px solid var(--border);border-radius:0;box-shadow:none"><table class="plain" id="logTable"></table></div>',
+  '</div>',
+'</section>',
+
+'</main>',
+'<button type="button" class="fab" id="fabAdd">'+IC_PLUS+'New item</button>',
+'<dialog class="sheet wide" id="formSheet"></dialog>',
+'<dialog class="sheet wide" id="detSheet"></dialog>',
+'<dialog class="sheet" id="lockSheet"></dialog>',
+'<div id="toast" hidden></div>'
+].join('');
+
+/* ------------------------------ render ------------------------------ */
+
+function render(){
+  if(tab==='stock')renderStock();
+  else if(tab==='overview')renderOverview();
+  else if(tab==='export')renderExport();
+  else if(tab==='setup'){renderDrives();renderLists();renderLog()}
+  renderPublish();
+}
+
+function chip(id,label,n,on){
+  return '<button type="button" class="chip" data-'+id+'="'+esc(label)+'" aria-pressed="'+(on?'true':'false')+'">'+
+    esc(label)+(n===null?'':'<span class="n">'+n+'</span>')+'</button>';
+}
+
+function renderChips(){
+  var all=items();
+  var cLoc=$('chipsLoc'), cStat=$('chipsStat'), cCat=$('chipsCat');
+
+  var h='<span class="cap">Where</span>'+chip('loc','All',all.length,f.loc==='All');
+  (S.locations||[]).forEach(function(L){
+    h+=chip('loc',L,all.filter(function(i){return i.loc===L}).length,f.loc===L);
+  });
+  cLoc.innerHTML=h;
+
+  var nExp=all.filter(function(i){return statusOf(i)==='expired'}).length;
+  var nSoon=all.filter(function(i){var s=statusOf(i);return s==='week'||s==='month'}).length;
+  var nLow=all.filter(belowPar).length;
+  var nToday=all.filter(function(i){return i.invDate===todayISO()}).length;
+  cStat.innerHTML='<span class="cap">Show</span>'+chip('stat','All',null,f.stat==='All')+
+    chip('stat','Expired',nExp,f.stat==='Expired')+
+    chip('stat','Soon',nSoon,f.stat==='Soon')+
+    chip('stat','Low',nLow,f.stat==='Low')+
+    chip('stat','Today',nToday,f.stat==='Today');
+
+  /* Only categories actually in use — an empty chip helps nobody. */
+  var used={}; all.forEach(function(i){if(i.cat)used[i.cat]=(used[i.cat]||0)+1});
+  var keys=Object.keys(used).sort();
+  if(!keys.length&&f.cat==='All'){cCat.hidden=true}
+  else{
+    cCat.hidden=false;
+    var hc='<span class="cap">Kind</span>'+chip('cat','All',null,f.cat==='All');
+    keys.forEach(function(k){hc+=chip('cat',k,used[k],f.cat===k)});
+    cCat.innerHTML=hc;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#chipsLoc .chip,#chipsStat .chip,#chipsCat .chip'),function(b){
+    b.onclick=function(){
+      if(b.dataset.loc!==undefined)f.loc=b.dataset.loc;
+      else if(b.dataset.stat!==undefined)f.stat=b.dataset.stat;
+      else if(b.dataset.cat!==undefined)f.cat=b.dataset.cat;
+      renderStock();
+    };
+  });
+}
+
+function itemCard(it){
+  var st=statusOf(it), ph=photoOf(it.id);
+  var cls='icard'+(st==='expired'?' exp':(st==='week'?' soon':''));
+  var thumb = ph
+    ? '<img class="thumb" src="'+ph+'" alt="">'
+    : '<div class="thumb none" aria-hidden="true">'+IC_CAM+'</div>';
+  var val=valueOf(it);
+  return '<button type="button" class="'+cls+'" data-open="'+esc(it.id)+'">'+thumb+
+    '<div class="body">'+
+      '<div class="nm">'+esc(it.name)+'</div>'+
+      '<div class="qt">'+esc(fmtQty(num(it.qty)))+' '+esc(it.unit||'')+
+        (val>0?' <span class="faint" style="font-weight:400">&middot; AED '+money(val)+'</span>':'')+'</div>'+
+      '<div class="meta">'+statusPill(it)+
+        '<span class="pill off">'+esc(it.loc||'No location')+'</span>'+
+        (belowPar(it)?'<span class="pill acc">Below minimum</span>':'')+
+      '</div>'+
+      (it.remark?'<div class="meta faint">'+esc(it.remark)+'</div>':'')+
+    '</div></button>';
+}
+
+function itemRows(list){
+  var h='<thead><tr><th>Item</th><th class="n">Quantity</th><th>Where</th><th>Kind</th>'+
+        '<th>Expiry</th><th class="n">Value AED</th><th>Counted</th></tr></thead><tbody>';
+  list.forEach(function(it){
+    h+='<tr class="clickable" data-open="'+esc(it.id)+'">'+
+      '<td><strong>'+esc(it.name)+'</strong>'+(it.remark?'<div class="faint" style="font-size:11.5px">'+esc(it.remark)+'</div>':'')+'</td>'+
+      '<td class="n">'+esc(fmtQty(num(it.qty)))+' '+esc(it.unit||'')+(belowPar(it)?'<div><span class="pill acc">Low</span></div>':'')+'</td>'+
+      '<td>'+esc(it.loc||'')+(it.sub?'<div class="faint" style="font-size:11.5px">'+esc(it.sub)+'</div>':'')+'</td>'+
+      '<td class="muted">'+esc(it.cat||'')+'</td>'+
+      '<td>'+statusPill(it)+'</td>'+
+      '<td class="n">'+(valueOf(it)>0?money(valueOf(it)):'<span class="faint">—</span>')+'</td>'+
+      '<td class="muted">'+esc(dnice(it.invDate))+(it.by?'<div class="faint" style="font-size:11.5px">'+esc(it.by)+'</div>':'')+'</td>'+
+    '</tr>';
+  });
+  return h+'</tbody>';
+}
+
+function renderStock(){
+  renderChips();
+  $('sortBy').value=f.sort;
+  $('vCards').setAttribute('aria-pressed',view==='cards'?'true':'false');
+  $('vTable').setAttribute('aria-pressed',view==='table'?'true':'false');
+
+  var list=filtered(), all=items().length;
+  var shown=list.reduce(function(a,b){return a+valueOf(b)},0);
+  $('stockCount').innerHTML = all
+    ? '<strong>'+list.length+'</strong> of '+all+' item'+(all===1?'':'s')+
+      (shown>0?' &middot; AED '+money(shown)+' counted value':'')
+    : '';
+
+  var host=$('stockList');
+  if(!all){
+    host.innerHTML='<div class="card empty"><div class="big">Nothing counted yet</div>'+
+      (readOnly?'Ask the office for the lock code, then start the count.':'Press <strong>New item</strong> to log the first thing on the shelf.')+'</div>';
+    return;
+  }
+  if(!list.length){
+    host.innerHTML='<div class="card empty"><div class="big">No match</div>Nothing here fits those filters. Clear the search or pick <strong>All</strong>.</div>';
+    return;
+  }
+  host.innerHTML = view==='table'
+    ? '<div class="wrap"><table class="plain">'+itemRows(list)+'</table></div>'
+    : '<div class="cards">'+list.map(itemCard).join('')+'</div>';
+
+  Array.prototype.forEach.call(host.querySelectorAll('[data-open]'),function(el){
+    el.onclick=function(){openDetail(el.getAttribute('data-open'))};
+  });
+}
+
+function tile(label,value,foot,cls){
+  return '<div class="tile'+(cls?' '+cls:'')+'"><div class="label">'+esc(label)+'</div>'+
+    '<div class="value">'+value+'</div>'+(foot?'<div class="foot">'+foot+'</div>':'')+'</div>';
+}
+
+function renderOverview(){
+  var all=items();
+  var value=all.reduce(function(a,b){return a+valueOf(b)},0);
+  var exp=all.filter(function(i){return statusOf(i)==='expired'});
+  var soon=all.filter(function(i){var s=statusOf(i);return s==='week'||s==='month'});
+  var low=all.filter(belowPar);
+  var today=all.filter(function(i){return i.invDate===todayISO()});
+  var dates=all.map(function(i){return i.invDate}).filter(Boolean).sort();
+  var last=dates.length?dates[dates.length-1]:null;
+
+  $('ovTiles').innerHTML=
+    tile('Items counted',all.length,last?'Last count '+esc(dnice(last)):'')+
+    tile('Counted value','<span style="font-size:16px">AED</span> '+money(value),value?'Across '+(S.locations||[]).length+' locations':'')+
+    tile('Expired',exp.length,exp.length?'Take these off the shelf':'Nothing expired',exp.length?'alert':'')+
+    tile('Expiring in 30 days',soon.length,soon.length?'Use or move them first':'All clear',soon.length?'warnt':'')+
+    tile('Below minimum',low.length,low.length?'Reorder these':'Nothing to reorder',low.length?'warnt':'')+
+    tile('Counted today',today.length,esc(dnice(todayISO())));
+
+  var attn=all.filter(function(i){var s=statusOf(i);return s==='expired'||s==='week'||s==='month'||belowPar(i)});
+  var rank={expired:0,week:1,month:2,ok:3};
+  attn.sort(function(a,b){return rank[statusOf(a)]-rank[statusOf(b)]||String(a.expiry||'9999').localeCompare(String(b.expiry||'9999'))});
+  var at=$('actionTable');
+  at.innerHTML = attn.length ? itemRows(attn)
+    : '<tbody><tr><td style="padding:26px;text-align:center" class="muted">Nothing needs attention. Every item is in date and above its minimum.</td></tr></tbody>';
+  Array.prototype.forEach.call(at.querySelectorAll('[data-open]'),function(el){
+    el.onclick=function(){openDetail(el.getAttribute('data-open'))};
+  });
+
+  bars($('barsLoc'),(S.locations||[]).map(function(L){
+    var sub=all.filter(function(i){return i.loc===L});
+    return {label:L,n:sub.reduce(function(a,b){return a+valueOf(b)},0),
+            amt:'AED '+money(sub.reduce(function(a,b){return a+valueOf(b)},0))+' · '+sub.length+' item'+(sub.length===1?'':'s')};
+  }),'No stock counted yet.');
+
+  var byCat={};
+  all.forEach(function(i){var k=i.cat||'Uncategorised';byCat[k]=(byCat[k]||0)+1});
+  bars($('barsCat'),Object.keys(byCat).sort(function(a,b){return byCat[b]-byCat[a]}).map(function(k){
+    return {label:k,n:byCat[k],amt:byCat[k]+' item'+(byCat[k]===1?'':'s')};
+  }),'No stock counted yet.');
+}
+
+function bars(host,rows,emptyMsg){
+  var max=rows.reduce(function(m,r){return Math.max(m,r.n)},0);
+  if(!rows.length||!max){host.innerHTML='<div class="muted" style="font-size:13px">'+esc(emptyMsg)+'</div>';return}
+  host.innerHTML=rows.map(function(r){
+    return '<div class="bar"><div>'+esc(r.label)+'</div>'+
+      '<div class="track"><div class="fill" style="width:'+Math.max(2,Math.round(r.n/max*100))+'%"></div></div>'+
+      '<div class="amt">'+esc(r.amt)+'</div></div>';
+  }).join('');
+}
+
+function photoFolderName(){ return S.photoFolder||'Stock Count Photos' }
+
+function renderExport(){
+  $('driveLink').href=S.drive||'#';
+  var pf=S.drivePhotos||'';
+  var pl=$('drivePhotosLink');
+  pl.href=pf||S.drive||'#';
+  pl.textContent=pf?'Open the photos folder':'Open the Drive folder';
+
+  $('photoHow').innerHTML='<strong>Where the photos go.</strong> Inside the Drive folder, in their own sub-folder named '+
+    '<strong>'+esc(photoFolderName())+'</strong> — the .csv stays in the main folder, the pictures stay out of its way.'+
+    (pf?'':' <span class="faint">Make that sub-folder once, then paste its link into Setup so this button jumps straight to it.</span>')+
+    '<br><br>This page cannot upload to Drive by itself — Drive needs your own Google sign-in, which a shared link does not carry. '+
+    'So: press <strong>Save all photos</strong>, confirm each one, then open the folder and upload them from your Downloads. '+
+    'Every file is already named <span class="num">location_item_date_ID.jpg</span>, so they sort themselves.';
+
+  var n=Object.keys(S.photos||{}).length;
+  var b=storageBytes(), pct=Math.min(100,Math.round(b/HARD_LIMIT*100));
+  var cls=b>SOFT_LIMIT?(b>HARD_LIMIT?'bad':'warn'):'';
+  $('savePhotos').disabled=!n;
+  $('photoMeter').innerHTML=
+    '<div class="row" style="justify-content:space-between;font-size:12.5px"><span class="muted"><strong>'+n+'</strong> photo'+(n===1?'':'s')+' held in this page</span>'+
+    '<span class="num muted">'+(b/1048576).toFixed(1)+' MB of 13 MB</span></div>'+
+    '<div class="meter '+cls+'" style="margin-top:5px"><i style="width:'+pct+'%"></i></div>'+
+    (b>SOFT_LIMIT?'<div class="note bad" style="margin-top:10px">The page is getting full. Save the photos to Drive, then clear the old ones from <strong>Setup</strong> so the count keeps saving.</div>':'');
+}
+
+function renderDrives(){
+  var host=$('drivesCard');
+  host.innerHTML='<div><h2 class="sec">Drive folders</h2><p class="sec">Where the count and the photos are filed. Everyone on the link sees these buttons.</p></div>'+
+    '<div><label class="lbl" for="dvMain">Main folder — the Excel file goes here</label>'+
+      '<input class="f" id="dvMain" type="url" placeholder="https://drive.google.com/drive/folders/…" value="'+esc(S.drive||'')+'"></div>'+
+    '<div><label class="lbl" for="dvPhotos">Photos sub-folder — inside the main folder</label>'+
+      '<input class="f" id="dvPhotos" type="url" placeholder="Paste the sub-folder link once you have made it" value="'+esc(S.drivePhotos||'')+'"></div>'+
+    '<div><label class="lbl" for="dvName">Photos sub-folder name</label>'+
+      '<input class="f" id="dvName" placeholder="Stock Count Photos" value="'+esc(S.photoFolder||'')+'"></div>'+
+    '<div class="row"><button type="button" class="btn primary" id="dvSave">Save folders</button></div>'+
+    '<div class="note">Make the sub-folder in Drive yourself — right-click inside the main folder, <strong>New folder</strong>, call it '+
+      esc(photoFolderName())+' — then open it and paste its link above.</div>';
+  $('dvSave').onclick=function(){
+    var a=$('dvMain').value.trim(), b=$('dvPhotos').value.trim(), c=$('dvName').value.trim();
+    var bad=function(u){ return u && !/^https:\/\/(drive|docs)\.google\.com\//.test(u) };
+    if(bad(a)||bad(b)){toast('That does not look like a Google Drive link. It should start with https://drive.google.com/',5000);return}
+    S.drive=a; S.drivePhotos=b; S.photoFolder=c;
+    mark('Changed the Drive folder links');
+    renderDrives();
+    toast('Folders saved. Publish so everyone gets the new links.',4500);
+  };
+}
+
+function renderLists(){
+  var host=$('listsCard');
+  var groups=[
+    {key:'locations',title:'Locations',hint:'Where stock is counted.',min:1},
+    {key:'categories',title:'Categories',hint:'How the count is grouped in Excel.',min:0},
+    {key:'units',title:'Units of measure',hint:'Offered next to the quantity box.',min:1}
+  ];
+  host.innerHTML='<div><h2 class="sec">Lists</h2><p class="sec">These fill the drop-downs on the item form.</p></div>'+
+    groups.map(function(g){
+      var vals=S[g.key]||[];
+      return '<div><label class="lbl">'+esc(g.title)+' <span class="faint" style="text-transform:none;letter-spacing:0;font-weight:400">— '+esc(g.hint)+'</span></label>'+
+        '<div class="chiprow" style="margin-bottom:7px">'+vals.map(function(v,i){
+          return '<span class="pill">'+esc(v)+(vals.length>g.min?' <button type="button" class="lx" data-g="'+g.key+'" data-i="'+i+'" title="Remove" style="appearance:none;background:none;border:none;color:var(--critical);cursor:pointer;padding:0 0 0 3px;font-size:13px">&times;</button>':'')+'</span>';
+        }).join('')+'</div>'+
+        '<div class="row"><input class="f" id="add-'+g.key+'" placeholder="Add to '+esc(g.title.toLowerCase())+'" style="flex:1;max-width:280px">'+
+        '<button type="button" class="btn" data-add="'+g.key+'">Add</button></div></div>';
+    }).join('')+
+    '<div class="note">Removing a location or category never changes stock already counted — those items keep the name they were saved with.</div>'+
+    '<div><button type="button" class="btn danger" id="clearPhotos">Clear all photos from this page</button></div>';
+
+  Array.prototype.forEach.call(host.querySelectorAll('[data-add]'),function(b){
+    b.onclick=function(){
+      var g=b.getAttribute('data-add'), inp=$('add-'+g), v=inp.value.trim();
+      if(!v)return;
+      if((S[g]||[]).indexOf(v)>=0){toast('“'+v+'” is already on the list.');return}
+      S[g]=(S[g]||[]).concat([v]); inp.value='';
+      mark('Added '+v+' to '+g); renderLists();
+    };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.lx'),function(b){
+    b.onclick=function(){
+      var g=b.getAttribute('data-g'), i=+b.getAttribute('data-i'), v=S[g][i];
+      S[g]=S[g].filter(function(_,j){return j!==i});
+      mark('Removed '+v+' from '+g); renderLists();
+    };
+  });
+  $('clearPhotos').onclick=function(){
+    var n=Object.keys(S.photos||{}).length;
+    if(!n){toast('There are no photos to clear.');return}
+    confirmSheet('Clear '+n+' photo'+(n===1?'':'s')+'?','Save them to Drive first — this cannot be undone. The stock list itself is not touched.','Clear photos',function(){
+      S.photos={}; mark('Cleared '+n+' photos'); renderLists(); toast(n+' photos cleared.');
+    });
+  };
+}
+
+function renderLog(){
+  var t=$('logTable'), log=(S.log||[]).slice().reverse();
+  if(!log.length){t.innerHTML='<tbody><tr><td style="padding:26px;text-align:center" class="muted">Nothing published yet.</td></tr></tbody>';return}
+  t.innerHTML='<thead><tr><th>When</th><th>Who</th><th>What changed</th></tr></thead><tbody>'+
+    log.map(function(e){
+      return '<tr><td class="muted" style="white-space:nowrap">'+esc(stampText(e.t))+'</td>'+
+        '<td><span class="pill">'+esc(e.who==='admin'?'Admin':'Counter')+'</span></td>'+
+        '<td>'+e.items.map(esc).join('<br>')+(e.more?'<div class="faint">and '+e.more+' more</div>':'')+'</td></tr>';
+    }).join('')+'</tbody>';
+}
+
+function renderPublish(){
+  var btn=$('pubBtn'), stamp=$('pubStamp');
+  if(!btn)return;
+  var when=S.pub?esc(stampText(S.pub)):'Not published yet';
+  stamp.innerHTML = !canEdit()
+    ? '<strong>'+(S.pub?'Updated '+when:when)+'</strong>Live count'
+    : '<strong>'+when+'</strong>'+(dirty
+        ? pending.length+' change'+(pending.length===1?'':'s')+' waiting'
+        : (S.pub?'Everything is published':'Nothing to publish yet'));
+  if(!canEdit()){btn.hidden=true;return}
+  btn.hidden=false;
+  if(publishing){btn.className='btn-pub busy';btn.disabled=true;btn.innerHTML='Publishing&hellip;';return}
+  btn.disabled=!dirty;
+  btn.className='btn-pub'+(dirty?'':' clean');
+  btn.innerHTML=dirty?'Publish count'+(pending.length?' <span class="cnt">'+pending.length+'</span>':''):'Published';
+}
+
+function selectTab(id){
+  tab=id.replace('tab-','');
+  ['stock','overview','export','setup'].forEach(function(k){
+    var b=$('tab-'+k), p=$('panel-'+k);
+    var on=k===tab;
+    b.setAttribute('aria-selected',on?'true':'false');
+    b.setAttribute('tabindex',on?'0':'-1');
+    p.hidden=!on;
+  });
+  /* Nothing on the Excel or Setup tab is about adding stock. */
+  $('fabAdd').hidden = (tab==='export'||tab==='setup');
+  try{localStorage.setItem('sv-inv-tab',tab)}catch(e){}
+  render();
+}
+
+/* ------------------------- changes and drafts ----------------------- */
+
+/* Every edit goes through here: it flags the page as unpublished, writes
+   a plain-English line for the log, and keeps a local copy so a dropped
+   phone signal or an accidental refresh never loses a count. */
+function mark(desc){
+  if(!canEdit())return;
+  dirty=true;
+  if(desc)pending.push(desc);
+  saveDraft();
+  renderPublish();
+}
+function saveDraft(){
+  try{localStorage.setItem('sv-inv-draft',JSON.stringify({rev:S.rev||0,pending:pending,S:S}))}catch(e){}
+}
+function clearDraft(){ try{localStorage.removeItem('sv-inv-draft')}catch(e){} }
+function loadDraft(){
+  try{
+    var raw=localStorage.getItem('sv-inv-draft'); if(!raw)return false;
+    var d=JSON.parse(raw);
+    if(!d||!d.S||d.rev!==(S.rev||0))return false;
+    if(JSON.stringify(d.S)===JSON.stringify(S))return false;
+    S=d.S; pending=d.pending||[];
+    return true;
+  }catch(e){return false}
+}
+
+/* ------------------------------ sheets ------------------------------ */
+
+function sheet(el,html,wide){
+  var d=$(el); d.innerHTML=html; d.showModal(); return d;
+}
+function closeSheet(d){ try{d.close()}catch(e){} }
+function confirmSheet(title,body,okLabel,fn){
+  var d=sheet('lockSheet',
+    '<div class="sheet-head"><div><h3>'+esc(title)+'</h3><div class="who">'+body+'</div></div></div>'+
+    '<div class="sheet-foot"><button type="button" class="btn" id="cNo">Cancel</button>'+
+    '<button type="button" class="btn primary" id="cYes">'+esc(okLabel)+'</button></div>');
+  $('cNo').onclick=function(){closeSheet(d)};
+  $('cYes').onclick=function(){closeSheet(d);fn()};
+}
+
+/* -------------------------- the item form --------------------------- */
+
+var CONDITIONS=['Good','Near expiry','Damaged','Expired','To discard'];
+var STORAGE=['Dry / ambient','Chiller','Freezer'];
+
+function opts(list,sel,blank){
+  var h=blank?'<option value="">'+esc(blank)+'</option>':'';
+  return h+(list||[]).map(function(v){
+    return '<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';
+  }).join('');
+}
+
+function openForm(id){
+  if(!canEdit()){toast('Unlock with a code first.');return}
+  editing=id||null;
+  draftPhoto=undefined;
+  var it=editing?findItem(editing):null;
+  var isNew=!it;
+  it=it||{name:'',qty:'',unit:(S.units||[])[0]||'kg',loc:lastLoc(),cat:'',sub:'',cond:'Good',
+          storage:'',expiry:'',invDate:todayISO(),by:lastBy(),batch:'',supplier:'',cost:'',par:'',remark:''};
+
+  var d=sheet('formSheet',
+  '<div class="sheet-head"><div><h3>'+(isNew?'New item':'Edit item')+'</h3>'+
+    '<div class="who">'+(isNew?'Fill the top five boxes and save. The rest is optional.':esc(editing))+'</div></div>'+
+    '<button type="button" class="x" id="fX" aria-label="Close">&times;</button></div>'+
+  '<div class="sheet-body">'+
+    '<div><label class="lbl" for="iName">Item name <span class="req">*</span></label>'+
+      '<input class="f" id="iName" placeholder="e.g. Chicken thigh boneless" value="'+esc(it.name)+'" autocomplete="off"></div>'+
+
+    '<div><label class="lbl" for="iQty">Quantity <span class="req">*</span></label>'+
+      '<div class="qtyrow"><input class="f" id="iQty" type="number" inputmode="decimal" step="any" min="0" placeholder="0" value="'+esc(it.qty)+'">'+
+      '<select class="f" id="iUnit">'+opts(S.units,it.unit)+'</select></div></div>'+
+
+    '<div><label class="lbl">Location <span class="req">*</span></label>'+
+      '<div class="seg" id="iLocSeg">'+(S.locations||[]).map(function(L){
+        return '<button type="button" class="segb" data-loc="'+esc(L)+'" aria-pressed="'+(L===it.loc?'true':'false')+'">'+esc(L)+'</button>';
+      }).join('')+'</div></div>'+
+
+    '<div class="fgrid">'+
+      '<div><label class="lbl" for="iExp">Expiry date</label><input class="f" id="iExp" type="date" value="'+esc(it.expiry)+'"></div>'+
+      '<div><label class="lbl" for="iInv">Count date <span class="req">*</span></label><input class="f" id="iInv" type="date" value="'+esc(it.invDate||todayISO())+'"></div>'+
+      '<div><label class="lbl" for="iCat">Category</label><select class="f" id="iCat">'+opts(S.categories,it.cat,'— choose —')+'</select></div>'+
+      '<div><label class="lbl" for="iCond">Condition</label><select class="f" id="iCond">'+opts(CONDITIONS,it.cond||'Good')+'</select></div>'+
+      '<div class="full"><label class="lbl" for="iRem">Remark</label>'+
+        '<textarea class="f" id="iRem" placeholder="Anything the next person should know — opened pack, wrong label, short weight&hellip;">'+esc(it.remark)+'</textarea></div>'+
+    '</div>'+
+
+    '<div><label class="lbl">Photo</label><div class="photobox">'+
+      '<div id="phSlot"></div>'+
+      '<div class="ph-actions">'+
+        '<input type="file" id="iPhoto" accept="image/*" capture="environment" hidden>'+
+        '<button type="button" class="btn" id="phTake">'+IC_CAM+' Take or choose a photo</button>'+
+        '<button type="button" class="btn danger" id="phDel" hidden>Remove photo</button>'+
+        '<div class="faint" style="font-size:11.5px">Shrunk before saving so the page stays quick. Save the originals to Drive from the Excel &amp; photos tab.</div>'+
+      '</div></div></div>'+
+
+    '<details class="more"'+(it.batch||it.supplier||it.cost||it.par||it.sub||it.storage||it.by?' open':'')+'>'+
+      '<summary>More details</summary>'+
+      '<div class="fgrid">'+
+        '<div><label class="lbl" for="iBy">Counted by</label><input class="f" id="iBy" placeholder="Your name" value="'+esc(it.by)+'" autocomplete="off"></div>'+
+        '<div><label class="lbl" for="iSub">Shelf / rack</label><input class="f" id="iSub" placeholder="e.g. Chiller 2, shelf B" value="'+esc(it.sub)+'" autocomplete="off"></div>'+
+        '<div><label class="lbl" for="iStore">Stored at</label><select class="f" id="iStore">'+opts(STORAGE,it.storage,'— choose —')+'</select></div>'+
+        '<div><label class="lbl" for="iBatch">Batch / lot no.</label><input class="f" id="iBatch" value="'+esc(it.batch)+'" autocomplete="off"></div>'+
+        '<div><label class="lbl" for="iSup">Supplier</label><input class="f" id="iSup" value="'+esc(it.supplier)+'" autocomplete="off"></div>'+
+        '<div><label class="lbl" for="iCost">Unit cost (AED)</label><input class="f" id="iCost" type="number" inputmode="decimal" step="any" min="0" value="'+esc(it.cost)+'"></div>'+
+        '<div><label class="lbl" for="iPar">Minimum level</label><input class="f" id="iPar" type="number" inputmode="decimal" step="any" min="0" placeholder="Warn below this" value="'+esc(it.par)+'"></div>'+
+        '<div><label class="lbl">Total value</label><div class="f" id="iVal" style="background:var(--surface-sunken);font-family:var(--font-mono)">AED 0.00</div></div>'+
+      '</div>'+
+    '</details>'+
+    '<div id="fErr"></div>'+
+  '</div>'+
+  '<div class="sheet-foot">'+
+    (isNew?'':'<button type="button" class="btn danger admin-only" id="fDel">Delete item</button>')+
+    '<div class="spacer"></div>'+
+    '<button type="button" class="btn" id="fCancel">Cancel</button>'+
+    (isNew?'<button type="button" class="btn" id="fSaveNext">Save &amp; add another</button>':'')+
+    '<button type="button" class="btn primary" id="fSave">Save</button>'+
+  '</div>');
+
+  var curPhoto = editing?photoOf(editing):null;
+  function paintPhoto(){
+    var src = draftPhoto===undefined ? curPhoto : draftPhoto;
+    $('phSlot').outerHTML = src
+      ? '<img class="prev" id="phSlot" src="'+src+'" alt="Photo of this item">'
+      : '<div class="dropzone" id="phSlot">'+IC_CAM+'</div>';
+    $('phDel').hidden=!src;
+  }
+  paintPhoto();
+
+  function recalcValue(){
+    $('iVal').textContent='AED '+money(num($('iQty').value)*num($('iCost').value));
+  }
+  $('iQty').oninput=recalcValue; $('iCost').oninput=recalcValue; recalcValue();
+
+  Array.prototype.forEach.call(d.querySelectorAll('#iLocSeg .segb'),function(b){
+    b.onclick=function(){
+      Array.prototype.forEach.call(d.querySelectorAll('#iLocSeg .segb'),function(o){o.setAttribute('aria-pressed','false')});
+      b.setAttribute('aria-pressed','true');
+    };
+  });
+
+  $('phTake').onclick=function(){$('iPhoto').click()};
+  $('phDel').onclick=function(){draftPhoto=null;paintPhoto()};
+  $('iPhoto').onchange=function(){
+    var file=this.files&&this.files[0]; if(!file)return;
+    this.value='';
+    shrink(file,function(dataUrl,err){
+      if(err){toast('That photo could not be read. Try taking it again.',4000);return}
+      draftPhoto=dataUrl; paintPhoto();
+    });
+  };
+
+  $('fX').onclick=$('fCancel').onclick=function(){closeSheet(d)};
+  if($('fDel'))$('fDel').onclick=function(){
+    closeSheet(d);
+    var target=findItem(editing);
+    confirmSheet('Delete “'+(target?target.name:editing)+'”?','It disappears from the count and from the next Excel file. This cannot be undone.','Delete',function(){
+      deleteItem(editing); editing=null;
+    });
+  };
+  $('fSave').onclick=function(){ if(saveForm())closeSheet(d) };
+  if($('fSaveNext'))$('fSaveNext').onclick=function(){
+    if(saveForm()){ closeSheet(d); openForm(null); }
+  };
+  setTimeout(function(){try{$('iName').focus()}catch(e){}},60);
+}
+
+function lastLoc(){
+  var a=items(); return a.length?a[a.length-1].loc:(S.locations||[])[0];
+}
+function lastBy(){
+  try{return localStorage.getItem('sv-inv-by')||''}catch(e){return ''}
+}
+
+function saveForm(){
+  var name=$('iName').value.trim();
+  var qty=$('iQty').value;
+  var locBtn=document.querySelector('#iLocSeg .segb[aria-pressed="true"]');
+  var loc=locBtn?locBtn.getAttribute('data-loc'):'';
+  var invDate=$('iInv').value;
+  var problems=[];
+  if(!name)problems.push('the item name');
+  if(qty===''||num(qty)<0)problems.push('a quantity');
+  if(!loc)problems.push('a location');
+  if(!invDate)problems.push('the count date');
+  if(problems.length){
+    $('fErr').innerHTML='<div class="note bad">Still needed: '+esc(problems.join(', '))+'.</div>';
+    return false;
+  }
+
+  var it=editing?findItem(editing):null;
+  var isNew=!it;
+  if(isNew){ it={id:nextId(),t:new Date().toISOString()}; items().push(it) }
+
+  var before=isNew?null:JSON.stringify(it);
+  it.name=name; it.qty=num(qty); it.unit=$('iUnit').value; it.loc=loc;
+  it.cat=$('iCat').value; it.cond=$('iCond').value; it.expiry=$('iExp').value;
+  it.invDate=invDate; it.remark=$('iRem').value.trim();
+  it.by=$('iBy').value.trim(); it.sub=$('iSub').value.trim(); it.storage=$('iStore').value;
+  it.batch=$('iBatch').value.trim(); it.supplier=$('iSup').value.trim();
+  it.cost=$('iCost').value===''?'':num($('iCost').value);
+  it.par=$('iPar').value===''?'':num($('iPar').value);
+  it.mt=new Date().toISOString();
+  if(it.by){try{localStorage.setItem('sv-inv-by',it.by)}catch(e){}}
+
+  if(draftPhoto!==undefined){
+    if(!S.photos)S.photos={};
+    if(draftPhoto===null)delete S.photos[it.id];
+    else S.photos[it.id]=draftPhoto;
+  }
+  it.photo=!!(S.photos&&S.photos[it.id]);
+
+  if(storageBytes()>HARD_LIMIT){
+    if(S.photos)delete S.photos[it.id];
+    it.photo=false;
+    toast('The page is full, so the photo was not kept. Save the photos to Drive and clear them in Setup.',6000);
+  }
+
+  mark(isNew?('Added '+name+' ('+fmtQty(it.qty)+' '+it.unit+') at '+loc)
+            :(before===JSON.stringify(it)?'Touched '+name:'Edited '+name+' at '+loc));
+  render();
+  toast(isNew?'“'+name+'” added. Remember to publish.':'Saved.');
+  return true;
+}
+
+function deleteItem(id){
+  var it=findItem(id); if(!it)return;
+  S.items=items().filter(function(x){return x.id!==id});
+  if(S.photos)delete S.photos[id];
+  mark('Deleted '+it.name+' from '+it.loc);
+  render();
+  toast('“'+it.name+'” deleted.');
+}
+
+/* --------------------------- item detail ---------------------------- */
+
+function openDetail(id){
+  var it=findItem(id); if(!it)return;
+  var ph=photoOf(id);
+  var rows=[
+    ['Quantity',fmtQty(num(it.qty))+' '+esc(it.unit||'')],
+    ['Location',esc(it.loc)+(it.sub?' <span class="faint">· '+esc(it.sub)+'</span>':'')],
+    ['Category',esc(it.cat||'—')],
+    ['Condition',esc(it.cond||'—')+(it.storage?' <span class="faint">· '+esc(it.storage)+'</span>':'')],
+    ['Expiry',it.expiry?esc(dnice(it.expiry))+' '+statusPill(it):'<span class="faint">Not set</span>'],
+    ['Counted',esc(dnice(it.invDate))+(it.by?' by '+esc(it.by):'')],
+    ['Batch',esc(it.batch||'—')],
+    ['Supplier',esc(it.supplier||'—')],
+    ['Unit cost',it.cost!==''&&it.cost!=null?'AED '+money(num(it.cost)):'<span class="faint">—</span>'],
+    ['Total value',valueOf(it)?'<strong>AED '+money(valueOf(it))+'</strong>':'<span class="faint">—</span>'],
+    ['Minimum',it.par!==''&&it.par!=null?fmtQty(num(it.par))+' '+esc(it.unit||'')+(belowPar(it)?' <span class="pill acc">Below minimum</span>':''):'<span class="faint">—</span>'],
+    ['Remark',esc(it.remark||'—')]
+  ];
+  var d=sheet('detSheet',
+    '<div class="sheet-head"><div><h3>'+esc(it.name)+'</h3><div class="who">'+esc(it.id)+' · logged '+esc(stampText(it.t))+'</div></div>'+
+    '<button type="button" class="x" id="dX" aria-label="Close">&times;</button></div>'+
+    '<div class="sheet-body">'+
+      (ph?'<img class="bigphoto" src="'+ph+'" alt="Photo of '+esc(it.name)+'">':'')+
+      '<dl class="kv">'+rows.map(function(r){return '<dt>'+r[0]+'</dt><dd>'+r[1]+'</dd>'}).join('')+'</dl>'+
+    '</div>'+
+    '<div class="sheet-foot">'+
+      (ph?'<button type="button" class="btn" id="dPhoto">Save photo</button>':'')+
+      '<div class="spacer"></div>'+
+      '<button type="button" class="btn" id="dClose">Close</button>'+
+      '<button type="button" class="btn primary editor-only" id="dEdit">Edit</button>'+
+    '</div>');
+  $('dX').onclick=$('dClose').onclick=function(){closeSheet(d)};
+  $('dEdit').onclick=function(){closeSheet(d);openForm(id)};
+  if($('dPhoto'))$('dPhoto').onclick=function(){savePhoto(it,ph)};
+}
+
+/* ----------------------------- photos ------------------------------- */
+
+/* A phone photo is 3-6 MB; the whole page has to stay under 16 MB, so
+   every picture is redrawn at most 1000px on its long side before it is
+   kept. Enough to read a label, small enough to publish. */
+function shrink(file,cb){
+  var url=URL.createObjectURL(file);
+  var img=new Image();
+  img.onload=function(){
+    try{
+      var w=img.naturalWidth, h=img.naturalHeight;
+      var k=Math.min(1,PHOTO_MAX/Math.max(w,h));
+      var c=document.createElement('canvas');
+      c.width=Math.max(1,Math.round(w*k)); c.height=Math.max(1,Math.round(h*k));
+      var x=c.getContext('2d');
+      x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height);
+      x.drawImage(img,0,0,c.width,c.height);
+      cb(c.toDataURL('image/jpeg',PHOTO_Q));
+    }catch(e){cb(null,e)}
+    URL.revokeObjectURL(url);
+  };
+  img.onerror=function(){URL.revokeObjectURL(url);cb(null,new Error('decode'))};
+  img.src=url;
+}
+
+function safeName(s){
+  return String(s||'').replace(/[\\/:*?"<>|#]+/g,'').replace(/\s+/g,'-').replace(/^-+|-+$/g,'').slice(0,42)||'item';
+}
+function photoFilename(it){
+  return [safeName(it.loc),safeName(it.name),it.invDate||todayISO(),it.id].join('_')+'.jpg';
+}
+function dataUrlBytes(u){
+  var b=atob(String(u).split(',')[1]||'');
+  var a=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+  return a;
+}
+async function savePhoto(it,ph){
+  if(!dl){toast('Saving files is not available in this view.',4000);return}
+  try{
+    await dl.save({filename:photoFilename(it),data:dataUrlBytes(ph)});
+    toast('Photo saved. Upload it to “'+photoFolderName()+'” in Drive.',4500);
+  }catch(err){
+    var c=(err&&err.code)||'unavailable';
+    if(c==='declined')return;
+    toast(c==='rate_limited'?'One file at a time — try again in a moment.':'That photo could not be saved.',3800);
+  }
+}
+async function saveAllPhotos(){
+  if(!dl){toast('Saving files is not available in this view.',4000);return}
+  toast('Saving one at a time — confirm each. They all belong in “'+photoFolderName()+'”.',5000);
+  var ids=Object.keys(S.photos||{});
+  var list=ids.map(findItem).filter(Boolean);
+  if(!list.length){toast('There are no photos to save.');return}
+  var done=0,declined=0;
+  for(var i=0;i<list.length;i++){
+    var it=list[i];
+    try{
+      await dl.save({filename:photoFilename(it),data:dataUrlBytes(S.photos[it.id])});
+      done++; declined=0;
+      toast('Saved '+done+' of '+list.length+'…',2200);
+    }catch(err){
+      var c=(err&&err.code)||'unavailable';
+      if(c==='declined'){ declined++; if(declined>=2)break; continue }
+      if(c==='rate_limited'){ i--; await new Promise(function(r){setTimeout(r,1400)}); continue }
+      toast('Stopped after '+done+' photo'+(done===1?'':'s')+'.',4000); return;
+    }
+  }
+  toast(done?done+' photo'+(done===1?'':'s')+' saved. Now upload them to “'+photoFolderName()+'” in Drive.':'No photos were saved.',6000);
+}
+
+/* ------------------------------ export ------------------------------ */
+
+var COLS=[
+  ['Item ID',      function(i){return i.id}],
+  ['Item',         function(i){return i.name}],
+  ['Category',     function(i){return i.cat}],
+  ['Quantity',     function(i){return num(i.qty)}],
+  ['Unit',         function(i){return i.unit}],
+  ['Location',     function(i){return i.loc}],
+  ['Shelf / rack', function(i){return i.sub}],
+  ['Stored at',    function(i){return i.storage}],
+  ['Condition',    function(i){return i.cond}],
+  ['Expiry date',  function(i){return i.expiry}],
+  ['Days to expiry',function(i){var d=daysTo(i.expiry);return d===null?'':d}],
+  ['Status',       function(i){return STATUS_LABEL[statusOf(i)]}],
+  ['Count date',   function(i){return i.invDate}],
+  ['Counted by',   function(i){return i.by}],
+  ['Batch / lot',  function(i){return i.batch}],
+  ['Supplier',     function(i){return i.supplier}],
+  ['Unit cost AED',function(i){return i.cost===''||i.cost==null?'':num(i.cost)}],
+  ['Total value AED',function(i){return valueOf(i)||''}],
+  ['Minimum level',function(i){return i.par===''||i.par==null?'':num(i.par)}],
+  ['Below minimum',function(i){return belowPar(i)?'YES':''}],
+  ['Remark',       function(i){return i.remark}],
+  ['Photo',        function(i){return photoOf(i.id)?photoFilename(i):''}],
+  ['First logged', function(i){return i.t?String(i.t).slice(0,19).replace('T',' '):''}],
+  ['Last updated', function(i){return i.mt?String(i.mt).slice(0,19).replace('T',' '):''}]
+];
+
+function cell(v){
+  var s=v==null?'':String(v);
+  return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function buildCsv(list){
+  var rows=[COLS.map(function(c){return cell(c[0])}).join(',')];
+  list.forEach(function(it){ rows.push(COLS.map(function(c){return cell(c[1](it))}).join(',')) });
+  /* The BOM is what tells Excel the file is UTF-8 — without it Burmese
+     and Arabic item names arrive as mojibake. */
+  return '﻿'+rows.join('\r\n')+'\r\n';
+}
+function buildTsv(list){
+  var clean=function(v){return String(v==null?'':v).replace(/[\t\r\n]+/g,' ')};
+  return [COLS.map(function(c){return c[0]}).join('\t')]
+    .concat(list.map(function(it){return COLS.map(function(c){return clean(c[1](it))}).join('\t')}))
+    .join('\n');
+}
+async function downloadCsv(list,label){
+  if(!list.length){toast('There is nothing to export yet.');return}
+  var name='Shan-Village-Stock-'+label+'-'+todayISO()+'.csv';
+  if(!dl){toast('Downloads are not available here — use Copy to clipboard.',4500);return}
+  try{
+    await dl.save({filename:name,data:buildCsv(list)});
+    toast('Saved as '+name,4500);
+  }catch(err){
+    var c=(err&&err.code)||'unavailable';
+    if(c==='declined')return;
+    if(c==='extension_not_enabled'||c==='rejected_extension'){
+      copyTsv(list,'CSV files are blocked in this view, so the count was copied instead — paste it into Excel.');
+      return;
+    }
+    if(c==='rate_limited'){toast('One file at a time — try again in a moment.',3500);return}
+    if(c==='too_large'){toast('That count is too big for one file. Filter it down and export again.',5000);return}
+    toast('The file could not be saved. Use Copy to clipboard instead.',4500);
+  }
+}
+function copyTsv(list,msg){
+  if(!list.length){toast('There is nothing to copy yet.');return}
+  var text=buildTsv(list);
+  var ok=function(){toast(msg||('Copied '+list.length+' rows. Paste into Excel with Ctrl+V.'),5000)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(ok,function(){legacyCopy(text,ok)});
+  }else legacyCopy(text,ok);
+}
+function legacyCopy(text,ok){
+  var ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{document.execCommand('copy');ok()}catch(e){toast('Copying was blocked by the browser.',4000)}
+  document.body.removeChild(ta);
+}
+function attentionList(){
+  return items().filter(function(i){
+    var s=statusOf(i); return s==='expired'||s==='week'||s==='month'||belowPar(i);
+  });
+}
+
+/* ------------------------------- locks ------------------------------ */
+
+/* The code itself is never stored. Only a salted SHA-256 of it, so a
+   viewer reading the page source still cannot work out the code. */
+function cryptoOk(){ return !!(window.crypto&&crypto.subtle&&crypto.subtle.digest&&crypto.getRandomValues) }
+function hex(u8){ return Array.prototype.map.call(u8,function(b){return ('0'+b.toString(16)).slice(-2)}).join('') }
+function randSalt(){ var a=new Uint8Array(8); crypto.getRandomValues(a); return hex(a) }
+async function codeHash(code,salt){
+  var d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+LOCK_SALT_NS+String(code)));
+  return hex(new Uint8Array(d));
+}
+function getLocks(){ return S.locks||null }
+function hasLocks(){ var l=getLocks(); return !!(l&&(l.admin||l.counter)) }
+function canEdit(){ return role!==null }
+function roleName(r){ return r==='counter'?'Counter':(r==='admin'?'Admin':'') }
+
+function refreshMode(){
+  readOnly=!canEdit();
+  document.body.classList.toggle('readonly',readOnly);
+  document.body.classList.toggle('is-admin',role==='admin');
+  var n=$('roNote');
+  if(n)n.innerHTML = hasLocks()
+    ? '<strong>Read only.</strong> This is the live count. To add or change an item, press the lock and enter your code.'
+    : '<strong>Read only.</strong> No lock code has been set yet — ask the office to set one before the count starts.';
+  renderLockButton();
+  if(tab==='setup'&&role!=='admin')selectTab('tab-stock');
+  else render();
+}
+
+function renderLockButton(){
+  var b=$('lockBtn'); if(!b)return;
+  if(!cryptoOk()){b.hidden=true;return}
+  b.hidden=false;
+  var shut='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>';
+  var open='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.7-1.6"/></svg>';
+  if(canEdit()){ b.className='btn-lock open'; b.innerHTML=open+roleName(role)+' — lock' }
+  else{ b.className='btn-lock'; b.innerHTML=shut+(hasLocks()?'Unlock':'Set lock code') }
+}
+function lockButtonClicked(){ if(canEdit())lockNow(); else if(hasLocks())askUnlock(); else askSetCodes() }
+function lockNow(quiet){
+  role=null; clearTimeout(idleTimer);
+  try{sessionStorage.removeItem('sv-inv-role')}catch(e){}
+  refreshMode(); if(!quiet)toast('Locked.');
+}
+function unlockAs(r){
+  role=r;
+  try{sessionStorage.setItem('sv-inv-role',r)}catch(e){}
+  armIdleLock(); refreshMode();
+  toast('Unlocked as '+roleName(r)+'. Publish when the count is done.',4000);
+}
+function goReadOnly(reason){
+  role=null; dirty=false; pending=[];
+  try{sessionStorage.removeItem('sv-inv-role')}catch(e){}
+  refreshMode();
+  if(reason)toast(reason,5000);
+}
+/* A phone put down on the pass should not stay editable. */
+function armIdleLock(){
+  clearTimeout(idleTimer);
+  if(!canEdit()||!hasLocks())return;
+  idleTimer=setTimeout(function(){
+    if(canEdit()){lockNow(true);toast('Locked again after 20 minutes without use.',4500)}
+  },1200000);
+}
+['pointerdown','keydown'].forEach(function(ev){
+  document.addEventListener(ev,function(){ if(canEdit()&&hasLocks())armIdleLock() },{passive:true});
+});
+
+function askUnlock(){
+  var d=sheet('lockSheet',
+    '<div class="sheet-head"><div><h3>Unlock to count</h3><div class="who">Enter the counter or admin code.</div></div></div>'+
+    '<div class="sheet-body"><div id="lkErr"></div>'+
+    '<div><label class="lbl" for="lkCode">Lock code</label>'+
+    '<input class="f pin" id="lkCode" type="password" autocomplete="off"></div>'+
+    '<div class="note">Without a code the count can be read but not changed.</div>'+
+    '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
+    '<button type="button" class="btn primary" id="lkGo">Unlock</button></div>');
+  var go=async function(){
+    var v=$('lkCode').value; if(!v)return;
+    var l=getLocks()||{}, matched=null;
+    if(l.admin&&await codeHash(v,l.admin.salt)===l.admin.hash)matched='admin';
+    else if(l.counter&&await codeHash(v,l.counter.salt)===l.counter.hash)matched='counter';
+    if(!matched){
+      $('lkErr').innerHTML='<div class="note bad">That code does not match. Check with the office.</div>';
+      $('lkCode').value=''; $('lkCode').focus(); return;
+    }
+    closeSheet(d); unlockAs(matched);
+  };
+  $('lkCancel').onclick=function(){closeSheet(d)};
+  $('lkGo').onclick=go;
+  $('lkCode').onkeydown=function(e){if(e.key==='Enter')go()};
+  setTimeout(function(){try{$('lkCode').focus()}catch(e){}},60);
+}
+
+function askSetCodes(){
+  if(hasLocks()&&role!=='admin'){toast('Only the admin code can change the lock codes.',4000);return}
+  var l=getLocks()||{};
+  var d=sheet('lockSheet',
+    '<div class="sheet-head"><div><h3>Lock codes</h3><div class="who">One for the office, one for whoever walks the shelves. Leave a box empty to keep that code as it is.</div></div></div>'+
+    '<div class="sheet-body"><div id="lkErr"></div>'+
+    '<div><label class="lbl" for="lkAdmin">Admin code</label><input class="f pin" id="lkAdmin" type="text" autocomplete="off" placeholder="'+(l.admin?'unchanged':'not set')+'"></div>'+
+    '<div><label class="lbl" for="lkCounter">Counter code</label><input class="f pin" id="lkCounter" type="text" autocomplete="off" placeholder="'+(l.counter?'unchanged':'not set')+'"></div>'+
+    '<div class="note">At least 6 characters each, and different from one another. Write them down somewhere safe — nobody can read them back out of this page.</div>'+
+    '</div><div class="sheet-foot"><button type="button" class="btn" id="lkCancel">Cancel</button>'+
+    '<button type="button" class="btn primary" id="lkGo">Save codes</button></div>');
+  $('lkCancel').onclick=function(){closeSheet(d)};
+  $('lkGo').onclick=async function(){
+    var a=$('lkAdmin').value.trim(), c=$('lkCounter').value.trim();
+    var err=function(m){$('lkErr').innerHTML='<div class="note bad">'+esc(m)+'</div>'};
+    if(!a&&!c){err('Type at least one code.');return}
+    if(a&&a.length<6){err('The admin code needs at least 6 characters.');return}
+    if(c&&c.length<6){err('The counter code needs at least 6 characters.');return}
+    if(a&&c&&a===c){err('The two codes must be different.');return}
+    var next=Object.assign({},l);
+    if(a){var sa=randSalt();next.admin={salt:sa,hash:await codeHash(a,sa)}}
+    if(c){var sc=randSalt();next.counter={salt:sc,hash:await codeHash(c,sc)}}
+    if(!next.admin){err('Set an admin code as well — without one nobody can change these settings later.');return}
+    S.locks=next;
+    role='admin';
+    try{sessionStorage.setItem('sv-inv-role','admin')}catch(e){}
+    closeSheet(d);
+    mark('Changed the lock codes');
+    refreshMode();
+    toast('Codes saved. Publish now so they take effect for everyone.',5500);
+  };
+  setTimeout(function(){try{$('lkAdmin').focus()}catch(e){}},60);
+}
+
+/* ------------------------------ publish ----------------------------- */
+
+function buildDocument(){
+  var css=document.getElementById('appStyle').textContent;
+  var app=document.getElementById('app').textContent;
+  var json=JSON.stringify(S).replace(/</g,'\\u003c');
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<title>Shan Village Stock Count<\/title>'
+    +'<link rel="preconnect" href="https://fonts.googleapis.com">'
+    +'<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    +'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">'
+    +'<style id="appStyle">'+css+'<\/style></head><body><div id="root"></div>'
+    +'<script id="state" type="application/json">'+json+'<\/script>'
+    +'<script id="app">'+app+'<\/script></body></html>';
+}
+
+async function publish(){
+  if(!canEdit()||publishing||!dirty)return;
+  if(!api){goReadOnly('Saving is not available in this view.');return}
+  publishing=true; renderPublish();
+  var prevPub=S.pub, prevRev=S.rev||0, prevLog=S.log?S.log.slice():null;
+  S.pub=new Date().toISOString(); S.rev=prevRev+1;
+  if(pending.length){
+    if(!S.log)S.log=[];
+    S.log.push({t:S.pub,who:role,items:pending.slice(0,60),more:Math.max(0,pending.length-60)});
+    if(S.log.length>300)S.log=S.log.slice(-300);
+  }
+  try{
+    await api.publish(buildDocument());
+    dirty=false; pending=[]; clearDraft(); publishing=false;
+    renderPublish();
+    toast('Published. Everyone on the link sees this count now.',4000);
+  }catch(err){
+    S.pub=prevPub; S.rev=prevRev; if(prevLog)S.log=prevLog;
+    publishing=false;
+    var code=(err&&err.code)||'';
+    if(code==='conflict'){
+      toast('Someone else published first. This page is about to reload with their version.',6000);
+      return;                      /* every view reloads to the winner */
+    }
+    if(code==='not_granted'||code==='not_writer'){
+      goReadOnly('This link can read the count but not change it. Ask the office for an editing link.');
+      return;
+    }
+    renderPublish();
+    toast('Could not publish. Check the connection and press Publish again.',5000);
+  }
+}
+
+/* ------------------------- theme, wiring, boot ---------------------- */
+
+function applyMode(m){
+  if(m==='light'||m==='dark')document.body.setAttribute('data-mode',m);
+  else document.body.removeAttribute('data-mode');
+  Array.prototype.forEach.call(document.querySelectorAll('.themer button'),function(b){
+    b.setAttribute('aria-pressed',b.getAttribute('data-mode')===m?'true':'false');
+  });
+  try{localStorage.setItem('sv-inv-mode',m)}catch(e){}
+}
+function initMode(){
+  var m='auto';
+  try{var v=localStorage.getItem('sv-inv-mode'); if(v==='light'||v==='dark'||v==='auto')m=v}catch(e){}
+  applyMode(m);
+  Array.prototype.forEach.call(document.querySelectorAll('.themer button'),function(b){
+    b.onclick=function(){applyMode(b.getAttribute('data-mode'))};
+  });
+}
+
+function wire(){
+  ['stock','overview','export','setup'].forEach(function(k){
+    $('tab-'+k).onclick=function(){selectTab('tab-'+k)};
+  });
+  $('q').oninput=function(){f.q=this.value;renderStock()};
+  $('sortBy').onchange=function(){f.sort=this.value;renderStock()};
+  $('vCards').onclick=function(){view='cards';try{localStorage.setItem('sv-inv-view','cards')}catch(e){}renderStock()};
+  $('vTable').onclick=function(){view='table';try{localStorage.setItem('sv-inv-view','table')}catch(e){}renderStock()};
+  $('fabAdd').onclick=function(){openForm(null)};
+  $('lockBtn').onclick=lockButtonClicked;
+  $('pubBtn').onclick=publish;
+  $('setCodes').onclick=askSetCodes;
+  $('csvAll').onclick=function(){downloadCsv(items(),'Full')};
+  $('csvAction').onclick=function(){downloadCsv(attentionList(),'Attention')};
+  $('copyTsv').onclick=function(){copyTsv(items())};
+  $('savePhotos').onclick=saveAllPhotos;
+  document.addEventListener('keydown',function(e){
+    if(e.key==='n'&&(e.metaKey||e.ctrlKey)&&canEdit()){e.preventDefault();openForm(null)}
+  });
+  window.addEventListener('beforeunload',function(e){
+    if(dirty){e.preventDefault();e.returnValue=''}
+  });
+}
+
+/* --------------------------------- go -------------------------------- */
+
+var restored=loadDraft();
+try{var t0=localStorage.getItem('sv-inv-tab'); if(['stock','overview','export','setup'].indexOf(t0)>=0)tab=t0}catch(e){}
+try{var v0=localStorage.getItem('sv-inv-view'); if(v0==='cards'||v0==='table')view=v0}catch(e){}
+
+role=null;
+if(!hasLocks())role='admin';        /* a brand-new page: let the office set up */
+else{ try{var r0=sessionStorage.getItem('sv-inv-role'); if(r0==='admin'||r0==='counter')role=r0}catch(e){} }
+
+document.getElementById('root').innerHTML=SHELL;
+initMode();
+wire();
+selectTab('tab-'+tab);
+if(restored)dirty=true;
+readOnly=true;
+refreshMode();
+
+(async function(){
+  try{ api = (window.claude&&window.claude.use) ? await window.claude.use('artifact') : null }catch(e){ api=null }
+  try{ dl  = (window.claude&&window.claude.use) ? await window.claude.use('downloads') : null }catch(e){ dl=null }
+  apiReady=!!api;
+  refreshMode();
+  armIdleLock();
+  if(restored)toast('Restored the count you had not published yet.',4500);
+})();
+})();
+</script></body></html>
