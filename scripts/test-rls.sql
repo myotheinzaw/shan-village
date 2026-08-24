@@ -170,8 +170,10 @@ select test.check('admin: holds admin.users', app.has_permission('admin.users'))
 select test.check('admin: holds finance.approve', app.has_permission('finance.approve'));
 select test.check('admin: holds roster.unlock', app.has_permission('roster.unlock'));
 select test.check('admin: is_admin() true', app.is_admin());
-select test.check('admin: DENIED a disabled future module permission (wastage.create)',
-  not app.has_permission('wastage.create'));
+select test.check('admin: DENIED a disabled future module permission (inventory.count)',
+  not app.has_permission('inventory.count'));
+select test.check('admin: holds wastage.cost_view now the module is enabled',
+  app.has_permission('wastage.cost_view'));
 select test.check('admin: DENIED an unknown permission key', not app.has_permission('does.not.exist'));
 commit;
 
@@ -549,6 +551,168 @@ set local role anon;
 select test.check('anon: DENIED reading employees', test.count_of('select 1 from public.employees') = -1);
 select test.check('anon: DENIED reading the roster', test.count_of('select 1 from public.roster_assignments') = -1);
 select test.check('anon: DENIED reading settings', test.count_of('select 1 from public.app_settings') = -1);
+commit;
+
+
+-- =============================================================================
+-- 13. Wastage: the public submission link
+--
+-- This is the only unauthenticated write in the system, so it gets the most
+-- adversarial section in this suite: an anonymous caller must be able to file
+-- exactly one wastage entry through a valid token, and nothing else at all.
+-- =============================================================================
+insert into public.wastage_links (id, token, label, outlet_id, require_name, hourly_limit)
+values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'live-token-0000000000000001', 'Mall bin station',
+   (select id from public.outlets where code = 'MALL'), false, 3),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'revoked-token-000000000002', 'Old printed card', null, false, 60),
+  ('aaaaaaaa-0000-0000-0000-000000000003', 'expired-token-000000000003', 'Ramadan pop-up', null, false, 60),
+  ('aaaaaaaa-0000-0000-0000-000000000004', 'named-token-00000000000004', 'Night Market bin',
+   (select id from public.outlets where code = 'NIGHT_MARKET'), true, 60);
+
+update public.wastage_links set is_active = false where id = 'aaaaaaaa-0000-0000-0000-000000000002';
+update public.wastage_links set expires_at = now() - interval '1 day'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000003';
+
+begin;
+set local role anon;
+
+select test.check('anon: DENIED reading wastage entries directly',
+  test.count_of('select 1 from public.wastage_entries') = -1);
+select test.check('anon: DENIED reading the link tokens',
+  test.count_of('select 1 from public.wastage_links') = -1);
+select test.check('anon: DENIED reading the reasons table directly',
+  test.count_of('select 1 from public.wastage_reasons') = -1);
+select test.check('anon: DENIED inserting an entry directly',
+  test.affected('insert into public.wastage_entries (entry_date, entry_time, note) values (current_date, ''12:00'', ''direct'')') <= 0);
+
+select test.check('anon: an unknown token resolves to nothing',
+  (select count(*) from public.wastage_link_resolve('no-such-token-at-all-000001')) = 0);
+select test.check('anon: a revoked token resolves to nothing',
+  (select count(*) from public.wastage_link_resolve('revoked-token-000000000002')) = 0);
+select test.check('anon: an expired token resolves to nothing',
+  (select count(*) from public.wastage_link_resolve('expired-token-000000000003')) = 0);
+select test.check('anon: a live token resolves to its outlet',
+  (select outlet_name from public.wastage_link_resolve('live-token-0000000000000001')) = 'Mall');
+select test.check('anon: the form options need a valid token',
+  (select count(*) from public.wastage_form_options('no-such-token-at-all-000001')) = 0
+  and (select count(*) from public.wastage_form_options('live-token-0000000000000001')) > 0);
+
+select test.check('anon: can file an entry through a live token',
+  (select reference from public.wastage_submit(
+     p_token => 'live-token-0000000000000001',
+     p_reported_by => 'Win Paing',
+     p_item_name => 'Chicken curry',
+     p_note => 'Left out overnight',
+     p_estimated_value => 40)) like 'WS-%');
+
+select test.check('anon: DENIED filing through a revoked token',
+  test.denied('select public.wastage_submit(p_token => ''revoked-token-000000000002'', p_note => ''x'')'));
+select test.check('anon: DENIED filing through an expired token',
+  test.denied('select public.wastage_submit(p_token => ''expired-token-000000000003'', p_note => ''x'')'));
+select test.check('anon: DENIED filing without a name when the link demands one',
+  test.denied('select public.wastage_submit(p_token => ''named-token-00000000000004'', p_note => ''x'')'));
+select test.check('anon: can file when the required name is given',
+  (select count(*) from public.wastage_submit(
+     p_token => 'named-token-00000000000004', p_reported_by => 'Chan Pyae', p_note => 'Dropped tray')) = 1);
+
+-- The hourly ceiling on the Mall link is 3, and one entry is already filed.
+select public.wastage_submit(p_token => 'live-token-0000000000000001', p_note => 'second');
+select public.wastage_submit(p_token => 'live-token-0000000000000001', p_note => 'third');
+select test.check('anon: the hourly ceiling stops a flood on one link',
+  test.denied('select public.wastage_submit(p_token => ''live-token-0000000000000001'', p_note => ''fourth'')'));
+select test.check('anon: a ceiling on one link does not block another',
+  (select count(*) from public.wastage_submit(
+     p_token => 'named-token-00000000000004', p_reported_by => 'Chan Pyae', p_note => 'still working')) = 1);
+
+commit;
+
+-- What the anonymous caller was allowed to write, checked as the owner.
+select test.check('every anonymous entry is recorded as coming from the public link',
+  (select bool_and(source = 'PUBLIC_LINK' and status = 'SUBMITTED') from public.wastage_entries));
+select test.check('an anonymous entry cannot choose its own outlet when the link fixes one',
+  (select bool_and(o.code = 'MALL') from public.wastage_entries e
+   join public.outlets o on o.id = e.outlet_id
+   where e.link_id = 'aaaaaaaa-0000-0000-0000-000000000001'));
+select test.check('the link counts what was filed through it',
+  (select submission_count from public.wastage_links
+   where id = 'aaaaaaaa-0000-0000-0000-000000000001') = 3);
+select test.check('a wastage entry with nothing in it is refused',
+  test.denied('insert into public.wastage_entries (entry_date, entry_time) values (current_date, ''10:00'')'));
+select test.check('a negative estimated value is refused',
+  test.denied('insert into public.wastage_entries (entry_date, entry_time, note, estimated_value)
+               values (current_date, ''10:00'', ''x'', -5)'));
+select test.check('every wastage entry is audited',
+  (select count(*) from public.audit_logs where entity_type = 'WASTAGE_ENTRY' and action = 'INSERT') >= 5);
+
+begin;
+set local role anon;
+select test.check('anon: DENIED back-dating an entry beyond a week',
+  (select entry_date from public.wastage_submit(
+     p_token => 'named-token-00000000000004', p_reported_by => 'Chan Pyae',
+     p_note => 'old', p_entry_date => current_date - 60)) = current_date);
+select test.check('anon: DENIED filing an entry in the future',
+  (select entry_date from public.wastage_submit(
+     p_token => 'named-token-00000000000004', p_reported_by => 'Chan Pyae',
+     p_note => 'tomorrow', p_entry_date => current_date + 1)) = current_date);
+commit;
+
+-- =============================================================================
+-- 14. Wastage: who may read and change the log
+-- =============================================================================
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'staff_id')::text, true);
+select test.check('staff: DENIED reading the wastage log',
+  test.count_of('select 1 from public.wastage_entries') = 0);
+select test.check('staff: DENIED reading the link tokens',
+  test.count_of('select 1 from public.wastage_links') = 0);
+select test.check('staff: holds wastage.create',
+  app.has_permission('wastage.create'));
+select test.check('staff: DENIED wastage.view',
+  not app.has_permission('wastage.view'));
+select test.check('staff: DENIED confirming an entry',
+  test.affected('update public.wastage_entries set status = ''CONFIRMED''') <= 0);
+select test.check('staff: DENIED deleting an entry',
+  test.affected('delete from public.wastage_entries') <= 0);
+select test.check('staff: DENIED minting a submission link',
+  test.affected('insert into public.wastage_links (token, label) values (''staff-minted-token-000001'', ''mine'')') <= 0);
+commit;
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'mgr_id')::text, true);
+select test.check('manager: reads the whole wastage log',
+  test.count_of('select 1 from public.wastage_entries') >= 5);
+select test.check('manager: may confirm an entry',
+  test.affected('update public.wastage_entries set status = ''CONFIRMED'' where status = ''SUBMITTED''') > 0);
+select test.check('manager: may mint and revoke a submission link',
+  test.affected('insert into public.wastage_links (token, label) values (''manager-minted-token-0001'', ''New card'')') = 1);
+select test.check('manager: DENIED seeing the cost of wastage',
+  not app.has_permission('wastage.cost_view'));
+select test.check('manager: may publish the report',
+  app.has_permission('wastage.export'));
+select test.check('manager: DENIED deleting an entry',
+  test.affected('delete from public.wastage_entries') <= 0);
+commit;
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'staff2_id')::text, true);
+select test.check('staff: sees an entry matched to their own employee record',
+  test.count_of('select 1 from public.wastage_entries') = 0);
+commit;
+
+-- Match one entry to a staff member and confirm they can then see that one only.
+update public.wastage_entries
+   set employee_id = '55555555-0000-0000-0000-000000000003'
+ where id = (select id from public.wastage_entries order by created_at limit 1);
+
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :'staff2_id')::text, true);
+select test.check('staff: sees exactly the one entry matched to them',
+  test.count_of('select 1 from public.wastage_entries') = 1);
 commit;
 
 -- =============================================================================

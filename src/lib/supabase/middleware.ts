@@ -9,6 +9,13 @@ import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from './env'
  */
 const PUBLIC_PATHS = [
   '/login',
+  // The wastage submission link and the endpoint it posts to. Anyone holding a
+  // valid token may use them; the token is checked by the database, and neither
+  // reaches anything else.
+  '/w',
+  '/api/wastage/submit',
+  // Scheduled jobs authenticate with CRON_SECRET, not with a session.
+  '/api/cron',
   '/forgot-password',
   '/reset-password',
   '/auth',

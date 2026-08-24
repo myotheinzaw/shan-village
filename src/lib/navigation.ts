@@ -56,6 +56,15 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    label: 'Wastage',
+    icon: 'trash-2',
+    items: [
+      { label: 'Daily Wastage', href: '/wastage', permissions: ['wastage.view'], module: 'wastage', exact: true },
+      { label: 'Submission Links', href: '/wastage/links', permissions: ['wastage.manage'], module: 'wastage' },
+      { label: 'Wastage Reasons', href: '/wastage/reasons', permissions: ['wastage.manage'], module: 'wastage' },
+    ],
+  },
+  {
     label: 'Communication',
     icon: 'megaphone',
     items: [{ label: 'Announcements', href: '/announcements', permissions: ['announcements.view'] }],

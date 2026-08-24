@@ -1,6 +1,6 @@
 # Shan Village — Operations Management System
 
-**Phase 1: Staff & Duty Roster Management**
+**Phase 1: Staff & Duty Roster Management** · **Phase 2: Wastage**
 
 This document is the architectural reference for the platform. It records what was found in the
 existing Excel roster, the decisions taken, the database design, the security model, and the
@@ -17,7 +17,7 @@ employees, outlets, permissions, audit and settings. Operational capability is d
 | # | Module | Key | Phase 1 |
 |---|--------|-----|---------|
 | 1 | Staff & Duty Roster | `roster` | **BUILT** |
-| 2 | Wastage | `wastage` | architecture only |
+| 2 | Wastage | `wastage` | **BUILT** (Phase 2) |
 | 3 | Inventory & Stock Control | `inventory` | architecture only |
 | 4 | Purchasing | `purchasing` | architecture only |
 | 5 | Suppliers | `suppliers` | architecture only |
@@ -167,9 +167,10 @@ the Owner can re-shape any role later without code changes.
 `import.run` `admin.users` `admin.roles` `admin.permissions` `admin.settings` `admin.modules`
 `audit.view`
 
-Keys for future modules (`wastage.create`, `wastage.cost_view`, `inventory.count`,
-`purchasing.approve`, `costing.view`, …) are seeded as **inactive** rows so the vocabulary is
-stable, but they grant nothing while their module is disabled.
+Keys for future modules (`inventory.count`, `purchasing.approve`, `costing.view`, …) are seeded as
+**inactive** rows so the vocabulary is stable, but they grant nothing while their module is
+disabled. The `wastage.*` keys were seeded the same way in Phase 1 and activated in Phase 2 by
+migration 1100 — see §12.
 
 The catalogue deliberately separates the six things the brief calls out:
 **submit** (`requests.create`) · **view** (`roster.view`) · **edit** (`roster.edit`) ·
@@ -393,3 +394,107 @@ and position.
 
 Priority under pressure follows the brief's list exactly; the duty roster is never degraded to
 make room for anything else.
+
+
+---
+
+## 12. Phase 2 — the Wastage module
+
+The roster module is used by people with logins. Wastage is not: the people who see food thrown
+away are kitchen and stewarding staff, mid-shift, with wet hands. That single fact drives every
+decision below. Operator-facing setup is in [`docs/WASTAGE.md`](docs/WASTAGE.md).
+
+### 12.1 The capture path
+
+A public link per outlet, `/w/<token>`, printed as a QR code and stuck where the wastage happens.
+No login, no install, no app shell. Photo, note, reason, quantity, optional value; the date
+defaults to today and the time to now, **taken from the restaurant's clock** (`app.restaurant_now()`
+over the `timezone` setting) rather than from a phone that may be set to anything.
+
+Everything except "a photo, an item, or a note" is optional, and the value field says so out loud:
+*leave it blank, a guess is worse than nothing*. A wastage log that is slow to fill in does not get
+filled in, and a costed figure invented by whoever was nearest is worse than an honest gap — the
+report states how many entries had no price so the total reads as a floor.
+
+### 12.2 Schema
+
+| Table | Purpose |
+|---|---|
+| `wastage_reasons` | reason master: spoilage, over-production, prep error, customer return, damaged, trim, staff meal, equipment failure, other |
+| `wastage_links` | the public tokens: label, outlet, active flag, expiry, name requirement, hourly ceiling, usage counters |
+| `wastage_entries` | one thing thrown away: date, time, outlet, reporter, item, quantity/unit, reason, estimated value, note, photo, status, source, originating link |
+| `wastage_exports` | every attempt to publish a day to Drive, successes and failures alike |
+
+`wastage_entries.status` is `SUBMITTED → CONFIRMED / REJECTED`. A rejected entry stays on the log
+and in the workbook, excluded from the totals: a manager disagreeing with an entry is part of the
+day's record, and deleting it would leave the log unable to explain itself.
+
+### 12.3 The one unauthenticated write
+
+`anon` keeps the blanket revoke from migration 0600 and gains **no** table privilege. It reaches
+exactly three `SECURITY DEFINER` functions — `wastage_link_resolve`, `wastage_form_options`,
+`wastage_submit` — which live in `public` only because that is the schema PostgREST exposes.
+
+- Each verifies the token: active, unexpired, module enabled. Unknown, revoked and expired are
+  indistinguishable in the response, so a token guesser learns nothing.
+- `wastage_submit` fixes `source`, `status` and `link_id` itself, so a caller cannot file an entry
+  claiming to have come from management, nor pre-approve their own.
+- Each link carries an hourly ceiling, so one leaked token is a revocable nuisance and not an open
+  write endpoint. Rotating a token kills the old address immediately and keeps the entry history,
+  because entries reference the link row rather than the token.
+- Dates are clamped to the last seven days and never the future.
+
+`scripts/test-rls.sql` §13–14 asserts all of it against the real migrations.
+
+### 12.4 Photos
+
+A private Supabase Storage bucket, `wastage-photos`, partitioned `YYYY/MM/DD/<uuid>`. The browser
+downscales to 1600px before upload — a modern phone otherwise sends 4–8 MB over restaurant wifi.
+Management views a photo through a 15-minute signed URL from `/api/wastage/photo/[id]`, and only
+after RLS on the entry row has already agreed the caller may see it.
+
+An entry is worth more than its photo: if the upload fails, the entry is still recorded and the
+reporter is told the picture did not arrive.
+
+### 12.5 The Google Drive report
+
+One workbook per day, **rewritten in place**, so a day is one file at one stable link however many
+times it is regenerated. Photos go into a `Photos/<date>` sub-folder beside it — never mixed in
+with the workbooks — and each spreadsheet row hyperlinks to its own picture.
+
+Three triggers, all writing the same file: after each submission (in an `after()` task, once the
+reporter already has their confirmation), a manual button, and an hourly cron that republishes
+today and yesterday. Yesterday, because a late shift files after midnight and because it repairs
+any day where Drive was unreachable at the time.
+
+`src/lib/google/drive.ts` is a dependency-free service-account client: `googleapis` is a large tree
+for four calls. Failures are rows in `wastage_exports` and are surfaced on the Wastage screen — a
+report that has quietly stopped publishing is the failure mode that matters.
+
+The module is fully usable with Drive disconnected; only the automatic copy is skipped.
+
+### 12.6 Permissions and money
+
+`wastage.create` (Staff, Manager) · `wastage.view` · `wastage.approve` · `wastage.export` ·
+`wastage.manage` · `wastage.dashboard` (Manager) · `wastage.cost_view` (**Admin only**) ·
+`wastage.delete` (**nobody**).
+
+`wastage.cost_view` follows `finance.view` exactly: a manager who reviews entries does not thereby
+see the money. Because RLS protects rows and not columns, the masking lives in one function —
+`maskValues()` in `src/lib/data/wastage.ts` — mirrored in the export route.
+
+`wastage.delete` is granted to no role. Rejecting is the honest way to dismiss an entry; an admin
+can still delete, since `app.has_permission()` short-circuits for admins.
+
+### 12.7 The service-role key, revisited
+
+Phase 1 stated the key is used in exactly one file, for Supabase Auth admin calls only. Phase 2
+adds two uses, and both are narrow and documented at the point of use:
+
+- `src/lib/supabase/storage.ts` — the private photo bucket. An anonymous reporter must never hold
+  a storage credential, and a signed URL is issued only after RLS has approved the row.
+- `src/lib/supabase/system.ts` — the scheduled Drive publish. It has no user behind it and must
+  read the whole day; a caller-initiated export checks `wastage.export` in the route first.
+
+Neither reads or writes operational rows on behalf of a signed-in user. That still goes through the
+user-scoped client, so RLS keeps deciding who sees which entry.
