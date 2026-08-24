@@ -33,7 +33,7 @@ export function StaffShell({
     <div className="min-h-dvh bg-sand-50 pb-20">
       <header className="sticky top-0 z-30 border-b border-sand-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
-          <BrandMark className="size-8 text-spice-600" />
+          <BrandMark className="size-8" />
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight text-ink-900">SHAN VILLAGE</p>
             <p className="text-[11px] text-ink-500">{restaurantName}</p>
