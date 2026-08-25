@@ -17,7 +17,9 @@ function getLocks(){return S.locks||null}
 function hasLocks(){var l=getLocks();return !!(l&&(l.owner||l.admin||l.chef))}
 /* The office roles - the three that may look back past today and change
    settings. Staff is deliberately not one of them. */
-function isOffice(){return role==='owner'||role==='admin'||role==='chef'}
+/* Reports, corrections and settings are the office's: owner and admin.
+   A chef signs in like the kitchen does, to record wastage. */
+function isOffice(){return role==='owner'||role==='admin'}
 /* Sending needs a code only once a staff code exists. Until then the link
    behaves as it always has: open it and send. */
 function needsCode(){var l=getLocks();return !!(l&&l.staff)}

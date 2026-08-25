@@ -23,7 +23,12 @@ async function open_(opts={}){
 }
 
 // ---- photo: 586 KB in, small data URI out ----
+async function staffIn(p){
+  await p.click('#lockBtn'); await p.fill('#lkCode','ShanStaff-2640');
+  await p.click('#lkGo'); await p.waitForTimeout(400);
+}
 let p=await open_()
+await staffIn(p)
 await p.setInputFiles('#shotFile','sample-photo.jpg')
 await p.waitForTimeout(1500)
 r.hint=(await p.textContent('#shotHint')).trim()
@@ -42,6 +47,7 @@ await p.close()
 
 // ---- conflict: the entry survives the reload and is sent again ----
 p=await open_({conflictOnce:true})
+await staffIn(p)
 await p.fill('#fItem','Tom yum paste'); await p.fill('#fBy','Nay Lin Htet')
 await p.click('#sendBtn'); await p.waitForTimeout(900)
 r.conflict_pubCount=await p.evaluate(()=>sessionStorage.getItem('__pub'))
@@ -53,5 +59,6 @@ r.afterReload_stashCleared=await p.evaluate(()=>!sessionStorage.getItem('sv-w-pe
 r.afterReload_entries=await p.evaluate(()=>S.entries.length)
 r.afterReload_tries=await p.evaluate(()=>{const x=sessionStorage.getItem('sv-w-pending');return x?JSON.parse(x).tries:null})
 r.afterReload_item=await p.evaluate(()=>S.entries[0]&&S.entries[0].item)
+r.afterReload_notDuplicatedOnPhone=await p.evaluate(()=>LOCAL.length)
 await b.close()
 console.log(JSON.stringify({r,errors},null,1))

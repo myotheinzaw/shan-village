@@ -21,17 +21,24 @@ function buildDocument(){
    view-only, lands here - so say which it is and what to do about it. */
 function goReadOnly(){
   readOnly=true;
-  $('sendState').innerHTML='<div class="note-box bad">'+
-    '<strong>Nothing can be sent from this phone yet.</strong><br>'+
-    'The page has opened in view-only mode. That happens when this phone is '+
-    'signed out of Claude - use the <strong>Sign in</strong> button at the very top of the screen - '+
-    'or when the account you signed in with was given the link to view but not to edit; '+
-    'the office has to share it again with editing allowed.'+
-    '<div style="margin-top:9px"><button class="btn" id="roReload">Reload and try again</button></div></div>';
+  $('sendState').innerHTML='<div class="note-box warn">'+
+    '<strong>This phone cannot reach the office yet.</strong><br>'+
+    'The page has opened in view-only mode - that happens when the phone is signed out of Claude '+
+    '(use <strong>Sign in</strong> at the very top of the screen), or when the account it is signed '+
+    'in to was given the link to read but not to edit. '+
+    '<strong>Keep recording anyway:</strong> what you enter is saved on this phone, shown in Today, '+
+    'and sent the moment the page can be written to.'+
+    '<div class="row no-print" style="margin-top:9px;gap:7px">'+
+      '<button class="btn" id="roReload">Reload and try again</button></div></div>';
   var rb=$('roReload'); if(rb)rb.onclick=function(){location.reload()};
-  var sb=$('sendBtn');
-  if(sb){sb.disabled=true; sb.textContent='Sending is off - view only'}
+  syncSendBtn();
   renderStamp();
+}
+/* The button says what pressing it will actually do. */
+function syncSendBtn(){
+  var b=$('sendBtn'); if(!b||sending)return;
+  b.disabled=false;
+  b.textContent=(apiKnown&&(readOnly||!api))?'Save on this phone':'Send wastage';
 }
 
 /* A submit is a publish, and a publish can lose a race. Stash first, send
@@ -45,9 +52,10 @@ function unstash(){
 }
 function clearStash(){try{sessionStorage.removeItem(PENDING)}catch(err){}}
 
+var lastSendCode='';
 async function pushEntry(entry,tries){
   if(sending)return false;
-  if(!api){goReadOnly();return false}
+  if(!api){lastSendCode='not_writer';goReadOnly();return false}
   sending=true; $('sendBtn').disabled=true; $('sendBtn').textContent='Sending…';
   stash(entry,tries||1);
   S.entries.unshift(entry);
@@ -57,14 +65,15 @@ async function pushEntry(entry,tries){
   try{
     await api.publish(buildDocument());
     clearStash();
-    sending=false;
+    sending=false; lastSendCode='';
     toast('Sent. Thank you.'+(dropped?' Older pictures were cleared to make room.':''),3200);
     return true;
   }catch(err){
     S.entries=S.entries.filter(function(x){return x.id!==entry.id});
     S.pub=prevPub; S.rev=prevRev;
-    sending=false; $('sendBtn').disabled=false; $('sendBtn').textContent='Send wastage';
+    sending=false; syncSendBtn();
     var code=(err&&err.code)||'upstream_error';
+    lastSendCode=code;
     if(code==='conflict'){
       /* the shell is already reloading us to the winning version; the
          stash carries this entry across and boot() sends it again */
@@ -83,6 +92,47 @@ async function pushEntry(entry,tries){
     }
     return false;
   }
+}
+
+/* Nothing a cook types is thrown away because the link happens to be
+   read-only. It goes into this phone's own store, appears in Today at
+   once, and waits there to be sent. */
+function keepOnPhone(e){
+  e.local=true; e.savedAt=new Date().toISOString();
+  LOCAL.unshift(e);
+  var kept=saveLocal();
+  clearForm(); render(); selectTab('tab-today');
+  toast(kept
+    ? 'Saved on this phone. It is in Today, but the office has not received it yet.'
+    : 'Saved for now, but this phone has no room to keep it after a reload. Forward it as text.',5200);
+}
+async function flushLocal(quiet){
+  if(!api||readOnly||!LOCAL.length)return 0;
+  var sent=0;
+  while(LOCAL.length){
+    var e=LOCAL[LOCAL.length-1];              /* oldest first */
+    var copy={}; for(var k in e){ if(k!=='local'&&k!=='savedAt')copy[k]=e[k] }
+    var ok=await pushEntry(copy,1);
+    if(!ok)break;
+    LOCAL.pop(); saveLocal(); sent++;
+  }
+  render();
+  if(sent&&!quiet)toast(sent+(sent===1?' entry has':' entries have')+' now reached the office.',4000);
+  else if(!sent&&!quiet)toast('Still not able to send from this phone.',4000);
+  return sent;
+}
+function localAsText(){
+  var out=['Shan Village - wastage held on this phone'];
+  LOCAL.slice().reverse().forEach(function(e){
+    out.push('- '+fmtDay(e.d)+' '+(e.t||'')+'  '+(e.item||'(not named)')+
+      (qtyText(e)?'  '+qtyText(e):'')+
+      (e.price!=null&&e.price!==''?'  '+money(e.price):'')+
+      (e.reason?'  ['+e.reason+']':'')+
+      (e.by?'  by '+e.by:'')+
+      (e.note?'  note: '+e.note:''));
+  });
+  out.push('('+LOCAL.length+(LOCAL.length===1?' entry':' entries')+'; pictures are not in this text)');
+  return out.join('\n');
 }
 
 function readForm(){
@@ -118,5 +168,9 @@ function clearForm(){
 async function sendClicked(){
   var e=readForm(); if(!e)return;
   try{localStorage.setItem('sv-w-by',e.by||'')}catch(err){}
-  if(await pushEntry(e,1)){ clearForm(); render(); selectTab('tab-today') }
+  if(!api||readOnly){ keepOnPhone(e); return }
+  if(await pushEntry(e,1)){ clearForm(); render(); selectTab('tab-today'); return }
+  /* A conflict is already being retried from the stash after the reload;
+     anything else leaves the entry with nowhere to go, so keep it here. */
+  if(lastSendCode!=='conflict')keepOnPhone(e);
 }

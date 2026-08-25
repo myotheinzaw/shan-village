@@ -22,8 +22,9 @@ var PHOTO_EDGE=720;              /* longest side kept, in pixels          */
 var PHOTO_MAX=170000;            /* characters of data URI per photo      */
 var STATE_BUDGET=8500000;        /* characters of state before we shed    */
 var PENDING='sv-w-pending';      /* an entry in flight, across a reload   */
+var LOCALQ='sv-w-local';         /* entries this phone could not send yet */
 
-var api=null, role=null, readOnly=false, sending=false, tab='add';
+var api=null, apiKnown=false, role=null, readOnly=false, sending=false, tab='add';
 var photo=null, idleTimer=null;
 
 /* ------------------------------ time -------------------------------- */
@@ -73,14 +74,49 @@ function qtyText(e){
   if(e.qty==null||e.qty==='')return '';
   return (Math.round(Number(e.qty)*1000)/1000)+(e.unit?' '+e.unit:'');
 }
-function entriesOn(d){return S.entries.filter(function(e){return e.d===d})}
+/* ------------------------- kept on the phone -------------------------
+   A phone that cannot publish - signed out of Claude, or holding the link
+   with view rights only - must still be able to record wastage. Those
+   entries are kept in this browser, shown in the lists beside the sent
+   ones and clearly marked, and pushed to the office the moment the page
+   becomes writable. They are on one phone until then: that is said
+   plainly on screen rather than implied. */
+var LOCAL=[];
+function loadLocal(){
+  try{var raw=localStorage.getItem(LOCALQ); LOCAL=raw?JSON.parse(raw):[]}catch(e){LOCAL=[]}
+  if(!Array.isArray(LOCAL))LOCAL=[];
+  LOCAL.forEach(function(e){e.local=true});
+}
+function saveLocal(){
+  try{ localStorage.setItem(LOCALQ,JSON.stringify(LOCAL)); return true }
+  catch(err){
+    /* The phone is out of room. The words are worth more than the
+       picture, so let the oldest pictures go rather than the entry. */
+    for(var i=LOCAL.length-1;i>=0;i--){
+      if(LOCAL[i].photo){
+        delete LOCAL[i].photo; LOCAL[i].hadPhoto=true;
+        try{ localStorage.setItem(LOCALQ,JSON.stringify(LOCAL)); return true }catch(e2){}
+      }
+    }
+    return false;
+  }
+}
+function dropLocal(id){
+  LOCAL=LOCAL.filter(function(e){return e.id!==id});
+  saveLocal();
+}
+function allEntries(){return LOCAL.concat(S.entries)}
+function anyEntry(id){
+  return allEntries().filter(function(e){return e.id===id})[0]||null;
+}
+function entriesOn(d){return allEntries().filter(function(e){return e.d===d})}
 function sumCost(list){
   return list.reduce(function(n,e){var v=Number(e.price);return n+(isFinite(v)?v:0)},0);
 }
 function withCost(list){return list.filter(function(e){return isFinite(Number(e.price))&&e.price!==''&&e.price!=null})}
 function days(){
   var seen={};
-  S.entries.forEach(function(e){seen[e.d]=1});
+  allEntries().forEach(function(e){seen[e.d]=1});
   return Object.keys(seen).sort().reverse();
 }
 function toast(msg,ms){
@@ -107,7 +143,9 @@ function getLocks(){return S.locks||null}
 function hasLocks(){var l=getLocks();return !!(l&&(l.owner||l.admin||l.chef))}
 /* The office roles - the three that may look back past today and change
    settings. Staff is deliberately not one of them. */
-function isOffice(){return role==='owner'||role==='admin'||role==='chef'}
+/* Reports, corrections and settings are the office's: owner and admin.
+   A chef signs in like the kitchen does, to record wastage. */
+function isOffice(){return role==='owner'||role==='admin'}
 /* Sending needs a code only once a staff code exists. Until then the link
    behaves as it always has: open it and send. */
 function needsCode(){var l=getLocks();return !!(l&&l.staff)}
@@ -320,7 +358,7 @@ LOGO,
 '<nav class="tabs" role="tablist" aria-label="Sections">',
 '  <button role="tab" id="tab-add" aria-controls="panel-add" aria-selected="true">Add wastage</button>',
 '  <button role="tab" id="tab-today" aria-controls="panel-today" aria-selected="false">Today</button>',
-'  <button role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" hidden>History</button>',
+'  <button role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" hidden>Reports</button>',
 '  <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" hidden>Settings</button>',
 '</nav>',
 '<main>',
@@ -387,6 +425,7 @@ LOGO,
 
 /* ---- today ---- */
 '  <section class="panel" id="panel-today" role="tabpanel" aria-labelledby="tab-today" hidden>',
+'    <div id="localBox"></div>',
 '    <div class="tiles" id="todayTiles"></div>',
 '    <div class="row no-print"><h2 class="sec" id="todayHead">Today</h2><div class="spacer"></div>',
 '      <button class="btn" id="printToday">Print</button></div>',
@@ -395,13 +434,38 @@ LOGO,
 
 /* ---- history ---- */
 '  <section class="panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>',
-'    <div class="tiles" id="histTiles"></div>',
-'    <div class="row no-print"><label class="lbl" for="histFrom" style="margin:0">From</label>',
-'      <input class="f" id="histFrom" type="date" style="width:auto">',
-'      <label class="lbl" for="histTo" style="margin:0">to</label>',
-'      <input class="f" id="histTo" type="date" style="width:auto">',
-'      <div class="spacer"></div><button class="btn" id="printHist">Print</button></div>',
-'    <div id="histList"></div>',
+'    <div class="card card-pad no-print">',
+'      <div class="row"><h2 class="sec">Reports</h2><div class="spacer"></div>',
+'        <span class="faint" id="repLabel"></span></div>',
+'      <p class="sec">Everything sent, read a day, a week or a month at a time. Weeks run Monday to Sunday.</p>',
+'      <div class="chips" id="repMode" style="margin-top:11px">',
+'        <button type="button" class="chip" data-mode="day" aria-pressed="true">Daily</button>',
+'        <button type="button" class="chip" data-mode="week" aria-pressed="false">Weekly</button>',
+'        <button type="button" class="chip" data-mode="month" aria-pressed="false">Monthly</button>',
+'        <button type="button" class="chip" data-mode="range" aria-pressed="false">Any dates</button>',
+'      </div>',
+'      <div class="row" style="margin-top:11px;gap:7px">',
+'        <button class="btn" id="repPrev">&lsaquo; Earlier</button>',
+'        <button class="btn" id="repNow">Today</button>',
+'        <button class="btn" id="repNext">Later &rsaquo;</button>',
+'      </div>',
+'      <div class="row" id="repRangeRow" hidden style="margin-top:11px">',
+'        <label class="lbl" for="histFrom" style="margin:0">From</label>',
+'        <input class="f" id="histFrom" type="date" style="width:auto">',
+'        <label class="lbl" for="histTo" style="margin:0">to</label>',
+'        <input class="f" id="histTo" type="date" style="width:auto">',
+'      </div>',
+'      <div class="row" style="margin-top:11px;gap:7px">',
+'        <button class="btn" id="repExport">Export this period</button>',
+'        <button class="btn" id="repExportAll">Export the master file</button>',
+'        <div class="spacer"></div><button class="btn" id="printHist">Print</button>',
+'      </div>',
+'      <div id="repExportBox"></div>',
+'    </div>',
+'    <div class="tiles" id="histTiles" style="margin-top:13px"></div>',
+'    <div id="repBreak"></div>',
+'    <h2 class="sec" style="margin-top:18px">Every entry</h2>',
+'    <div id="histList" style="margin-top:9px"></div>',
 '  </section>',
 
 /* ---- settings ---- */
@@ -428,8 +492,9 @@ LOGO,
 '    </div>',
 '    <div class="card card-pad">',
 '      <h2 class="sec">How this page works</h2>',
-'      <p class="sec" style="margin-top:6px">Anyone with the link can send wastage - no code, nothing to install. Today is open to everyone so the kitchen can see what has already been sent and avoid entering it twice. History, corrections and these settings need the owner, admin or chef code.</p>',
-'      <p class="sec" style="margin-top:8px">Every entry is written into the page itself the moment it is sent, and the daily report in Google Drive is built from exactly what you see here.</p>',
+'      <p class="sec" style="margin-top:6px">Anyone with the staff code can record wastage - nothing to install. Today is open to everyone with the link so the kitchen can see what has already gone in and avoid entering it twice. Reports, corrections and these settings need the owner or admin code.</p>',
+'      <p class="sec" style="margin-top:8px">Every entry is written into the page itself as it is sent. A phone that cannot write to the page - signed out of Claude, or holding a read-only link - keeps its entries in the browser instead, marked <em>on this phone</em>, and sends them as soon as the page can be written to.</p>',
+'      <p class="sec" style="margin-top:8px">Reports reads the same entries a day, a week or a month at a time, and exports them as a comma file that Excel opens.</p>',
 '    </div>',
 '  </section>',
 '</main>',
@@ -446,16 +511,19 @@ function entryHtml(e){
   var img=e.photo?'<img src="'+e.photo+'" alt="'+esc(e.item||'Wastage')+'" data-zoom="'+e.id+'">'
         :(e.hadPhoto?'<div class="pill" style="width:62px;height:62px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.2">photo<br>gone</div>':'');
   var m=money(e.price);
-  return '<div class="entry" data-entry="'+e.id+'">'+img+
+  return '<div class="entry'+(e.local?' local':'')+'" data-entry="'+e.id+'">'+img+
     '<div class="body">'+
       '<div class="top"><span class="item">'+esc(e.item||'(not named)')+'</span>'+
         (qtyText(e)?'<span class="qty">'+esc(qtyText(e))+'</span>':'')+
         (m?'<span class="money">'+esc(m)+'</span>':'')+
       '</div>'+
       '<div class="meta">'+esc(e.t||'')+' &middot; '+esc(e.by||'not named')+
-        (e.reason?' &middot; <span class="pill">'+esc(e.reason)+'</span>':'')+'</div>'+
+        (e.reason?' &middot; <span class="pill">'+esc(e.reason)+'</span>':'')+
+        (e.local?' &middot; <span class="pill warn">on this phone</span>':'')+'</div>'+
       (e.note?'<div class="note">'+esc(e.note)+'</div>':'')+
-      (isOffice()?'<div class="row no-print" style="margin-top:8px;gap:7px">'+
+      (e.local?'<div class="row no-print" style="margin-top:8px;gap:7px">'+
+        '<button class="btn danger" data-drop="'+e.id+'" style="padding:5px 11px;font-size:12.5px">Delete</button></div>':'')+
+      (!e.local&&isOffice()?'<div class="row no-print" style="margin-top:8px;gap:7px">'+
         '<button class="btn" data-edit="'+e.id+'" style="padding:5px 11px;font-size:12.5px">Correct</button>'+
         '<button class="btn danger" data-del="'+e.id+'" style="padding:5px 11px;font-size:12.5px">Remove</button></div>':'')+
     '</div></div>';
@@ -482,7 +550,32 @@ function sortEntries(list){
   });
 }
 
+function renderLocalBox(){
+  var box=$('localBox'); if(!box)return;
+  if(!LOCAL.length){box.innerHTML='';return}
+  var n=LOCAL.length;
+  box.innerHTML='<div class="note-box warn" style="margin-bottom:13px">'+
+    '<strong>'+n+(n===1?' entry is':' entries are')+' saved on this phone only.</strong><br>'+
+    'They are in the list below, marked <em>on this phone</em>. The office cannot see them until this '+
+    'page can be written to - open the link on a phone signed in to Claude with editing allowed and tap '+
+    'Send now, or forward the text below.'+
+    '<div class="row no-print" style="margin-top:9px;gap:7px">'+
+      '<button class="btn" id="lqSend"'+((api&&!readOnly)?'':' disabled')+'>Send now</button>'+
+      '<button class="btn" id="lqText">Show as text to forward</button>'+
+    '</div><div id="lqTextBox" hidden style="margin-top:9px"></div></div>';
+  $('lqSend').onclick=function(){flushLocal()};
+  $('lqText').onclick=function(){
+    var b=$('lqTextBox');
+    if(!b.hidden){b.hidden=true;return}
+    b.hidden=false;
+    b.innerHTML='<textarea class="f" id="lqTextArea" rows="9" readonly></textarea>'+
+      '<div class="hint">Press and hold inside the box to select it all and copy, then paste it into a message.</div>';
+    $('lqTextArea').value=localAsText();
+    $('lqTextArea').focus(); $('lqTextArea').select();
+  };
+}
 function renderToday(){
+  renderLocalBox();
   var d=todayISO(), rows=sortEntries(entriesOn(d)), priced=withCost(rows);
   $('todayHead').textContent='Today - '+fmtDay(d);
   var qtyBits={};
@@ -492,39 +585,15 @@ function renderToday(){
   });
   var qtyText2=Object.keys(qtyBits).sort().map(function(u){
     return (Math.round(qtyBits[u]*1000)/1000)+' '+u}).join(' &middot; ');
+  var held=rows.filter(function(e){return e.local}).length;
   $('todayTiles').innerHTML=
-    tile('Entries',rows.length,'sent today')+
+    tile('Entries',rows.length,held?held+' still on this phone':'sent today',held?'warn':'')+
     tile('Value',priced.length?money(sumCost(rows)):'-',
          priced.length?priced.length+' of '+rows.length+' priced':'no prices entered','money')+
     tile('With a picture',rows.filter(function(e){return e.photo}).length,'of '+rows.length)+
     '<div class="tile"><div class="k">Quantity</div><div class="v" style="font-size:15px;line-height:1.35">'+
       (qtyText2||'-')+'</div><div class="n">by unit</div></div>';
   $('todayList').innerHTML=listHtml(rows,false);
-}
-
-function histRange(){
-  var f=$('histFrom').value, t=$('histTo').value;
-  var all=S.entries.slice();
-  if(f)all=all.filter(function(e){return e.d>=f});
-  if(t)all=all.filter(function(e){return e.d<=t});
-  return sortEntries(all);
-}
-function renderHistory(){
-  if(!isOffice())return;
-  var rows=histRange(), priced=withCost(rows);
-  var dayCount={}; rows.forEach(function(e){dayCount[e.d]=1});
-  var nDays=Object.keys(dayCount).length;
-  $('histTiles').innerHTML=
-    tile('Entries',rows.length,nDays+' day'+(nDays===1?'':'s'))+
-    tile('Value',priced.length?money(sumCost(rows)):'-',
-         priced.length?priced.length+' priced':'no prices','money')+
-    tile('Busiest day',(function(){
-      var by={}; rows.forEach(function(e){by[e.d]=(by[e.d]||0)+1});
-      var k=Object.keys(by).sort(function(a,b){return by[b]-by[a]})[0];
-      return k?dayName(k):'-';
-    })(),'most entries')+
-    tile('Average a day',nDays?(Math.round(rows.length/nDays*10)/10):'-','entries');
-  $('histList').innerHTML=listHtml(rows,true);
 }
 
 function renderStamp(){
@@ -542,7 +611,7 @@ function renderForm(){
     return '<button type="button" class="chip" data-reason="'+esc(r)+'" aria-pressed="'+(r===chosen?'true':'false')+'">'+esc(r)+'</button>';
   }).join('');
   var items={}, names={};
-  S.entries.forEach(function(e){ if(e.item)items[e.item]=1; if(e.by)names[e.by]=1 });
+  allEntries().forEach(function(e){ if(e.item)items[e.item]=1; if(e.by)names[e.by]=1 });
   $('itemList').innerHTML=Object.keys(items).sort().map(function(i){return '<option value="'+esc(i)+'">'}).join('');
   $('byList').innerHTML=Object.keys(names).sort().map(function(i){return '<option value="'+esc(i)+'">'}).join('');
   $('whenHint').textContent='Date and time are today in '+TZ_LABEL+'. Change them if you are recording something from earlier.';
@@ -556,8 +625,215 @@ function renderSettings(){
   staffCodeState();
 }
 function render(){
-  renderStamp(); renderForm(); renderToday();
+  renderStamp(); renderForm(); renderToday(); syncSendBtn();
   if(isOffice()){renderHistory();renderSettings()}
+}
+/* ----------------------------- reports ------------------------------
+   The office side of the page: the same entries read a day, a week or a
+   month at a time, broken down by item, reason and person, and taken out
+   as a file. Everything here is derived from the entries themselves -
+   nothing is stored twice, so a corrected entry corrects every figure.
+   Weeks run Monday to Sunday, which is the working week in the UAE.
+   -------------------------------------------------------------------- */
+var rep={mode:'day',anchor:null};
+
+function isoAdd(iso,n){
+  var d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n);
+  return d.toISOString().slice(0,10);
+}
+function isoAddMonths(iso,n){
+  var d=new Date(iso.slice(0,8)+'01T12:00:00Z'); d.setUTCMonth(d.getUTCMonth()+n);
+  return d.toISOString().slice(0,10);
+}
+function weekStartISO(iso){
+  var d=new Date(iso+'T12:00:00Z');
+  return isoAdd(iso,-((d.getUTCDay()+6)%7));          /* Monday */
+}
+function monthFirst(iso){return iso.slice(0,8)+'01'}
+function monthLast(iso){
+  var d=new Date(iso.slice(0,8)+'01T12:00:00Z'); d.setUTCMonth(d.getUTCMonth()+1); d.setUTCDate(0);
+  return d.toISOString().slice(0,10);
+}
+function monthName(iso){
+  var d=new Date(iso.slice(0,8)+'01T12:00:00Z');
+  return d.toLocaleDateString('en-GB',{timeZone:'UTC',month:'long',year:'numeric'});
+}
+function repRange(){
+  var a=rep.anchor||todayISO();
+  if(rep.mode==='day')  return {from:a,to:a,label:dayName(a)+' - '+fmtDay(a)};
+  if(rep.mode==='week'){var f=weekStartISO(a),t=isoAdd(f,6);
+    return {from:f,to:t,label:'Week of '+fmtDay(f)+' to '+fmtDay(t)}}
+  if(rep.mode==='month')return {from:monthFirst(a),to:monthLast(a),label:monthName(a)};
+  return {from:$('histFrom').value||'',to:$('histTo').value||'',label:'Chosen dates'};
+}
+function histRange(){
+  var r=repRange(), all=allEntries().slice();
+  if(r.from)all=all.filter(function(e){return e.d>=r.from});
+  if(r.to)  all=all.filter(function(e){return e.d<=r.to});
+  return sortEntries(all);
+}
+function repStep(n){
+  var a=rep.anchor||todayISO();
+  if(rep.mode==='day')rep.anchor=isoAdd(a,n);
+  else if(rep.mode==='week')rep.anchor=isoAdd(weekStartISO(a),7*n);
+  else if(rep.mode==='month')rep.anchor=isoAddMonths(a,n);
+  renderHistory();
+}
+
+/* --------------------------- breakdowns ----------------------------- */
+function qtyLine(bucket){
+  return Object.keys(bucket).sort().map(function(u){
+    return (Math.round(bucket[u]*1000)/1000)+(u?' '+u:'')}).join(', ');
+}
+function groupRows(rows,keyOf){
+  var by={};
+  rows.forEach(function(e){
+    var k=keyOf(e)||'(not given)';
+    var g=by[k]||(by[k]={k:k,n:0,val:0,priced:0,qty:{}});
+    g.n++;
+    var v=Number(e.price);
+    if(isFinite(v)&&e.price!=null&&e.price!==''){g.val+=v;g.priced++}
+    if(e.qty!=null&&e.qty!==''){var u=e.unit||'';g.qty[u]=(g.qty[u]||0)+Number(e.qty)}
+  });
+  return Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){
+    return (b.val-a.val)||(b.n-a.n)||a.k.localeCompare(b.k);
+  });
+}
+function breakTable(title,rows,keyOf,head){
+  var gs=groupRows(rows,keyOf);
+  var top=gs.reduce(function(m,g){return Math.max(m,g.val||0)},0);
+  var h='<div class="card card-pad" style="margin-top:13px"><h2 class="sec">'+esc(title)+'</h2>'+
+    '<div class="wrap" style="margin-top:9px;border:0;box-shadow:none">'+
+    '<table><thead><tr><th>'+esc(head)+'</th><th class="n">Entries</th><th>Quantity</th>'+
+    '<th class="n">Value</th><th style="width:22%"></th></tr></thead><tbody>';
+  if(!gs.length)h+='<tr><td colspan="5" class="empty">Nothing in this period.</td></tr>';
+  gs.slice(0,40).forEach(function(g){
+    h+='<tr><td class="name">'+esc(g.k)+'</td><td class="n">'+g.n+'</td>'+
+       '<td>'+esc(qtyLine(g.qty)||'-')+'</td>'+
+       '<td class="n">'+(g.priced?esc(money(g.val)):'-')+'</td>'+
+       '<td><div class="bar" style="width:'+(top?Math.round(g.val/top*100):0)+'%"></div></td></tr>';
+  });
+  return h+'</tbody></table></div></div>';
+}
+function dayTable(rows,from,to){
+  if(!from||!to)return '';
+  var by={}; rows.forEach(function(e){
+    var g=by[e.d]||(by[e.d]={n:0,val:0,priced:0});
+    g.n++; var v=Number(e.price);
+    if(isFinite(v)&&e.price!=null&&e.price!=='')  {g.val+=v;g.priced++}
+  });
+  var days=[], d=from, guard=0;
+  while(d<=to&&guard++<400){days.push(d);d=isoAdd(d,1)}
+  var top=days.reduce(function(m,x){return Math.max(m,(by[x]&&by[x].val)||0)},0);
+  var h='<div class="card card-pad" style="margin-top:13px"><h2 class="sec">Day by day</h2>'+
+    '<div class="wrap" style="margin-top:9px;border:0;box-shadow:none">'+
+    '<table><thead><tr><th>Day</th><th class="n">Entries</th><th class="n">Value</th>'+
+    '<th style="width:34%"></th></tr></thead><tbody>';
+  days.forEach(function(x){
+    var g=by[x]||{n:0,val:0,priced:0};
+    h+='<tr><td class="name">'+esc(fmtDay(x))+'</td><td class="n">'+(g.n||'-')+'</td>'+
+       '<td class="n">'+(g.priced?esc(money(g.val)):'-')+'</td>'+
+       '<td><div class="bar" style="width:'+(top?Math.round(g.val/top*100):0)+'%"></div></td></tr>';
+  });
+  return h+'</tbody></table></div></div>';
+}
+
+/* ------------------------------ export ------------------------------ */
+function csvCell(v){
+  v=String(v==null?'':v);
+  return /[",\r\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+}
+function csvOf(rows){
+  var head=['Date','Time','Item','Quantity','Unit','Value ('+cur()+')','Reason','Note',
+            'Recorded by','Signed in as','Picture','Status','Entry id'];
+  var out=[head];
+  rows.forEach(function(e){
+    out.push([e.d,e.t||'',e.item||'',e.qty==null?'':e.qty,e.unit||'',
+      (e.price==null||e.price==='')?'':e.price,e.reason||'',e.note||'',e.by||'',e.role||'',
+      e.photo?'yes':(e.hadPhoto?'released':'no'),
+      e.local?'on this phone':'sent',e.id]);
+  });
+  return out.map(function(r){return r.map(csvCell).join(',')}).join('\r\n');
+}
+/* A page shared as "anyone with the link" is not allowed to hand a file
+   to the browser, and a public link is the whole point here - so the
+   export is shown as text to copy, and the file save is used only where
+   the runtime allows it. */
+async function exportCsv(rows,name){
+  if(!rows.length){toast('Nothing to export in this period.',3000);return}
+  /* Excel reads a comma file correctly only when it is told the encoding,
+     which is what the byte order mark does. */
+  var text='﻿'+csvOf(rows);
+  var box=$('repExportBox'); box.innerHTML='';
+  var dl=null;
+  try{ dl=(window.claude&&typeof claude.use==='function')?await claude.use('downloads'):null }catch(e){dl=null}
+  if(dl){
+    try{
+      await dl.save({filename:name+'.csv',data:text});
+      toast(rows.length+' entries saved. Open the file in Excel.',4000);
+      return;
+    }catch(err){
+      var code=(err&&err.code)||'unavailable';
+      if(code==='declined'){toast('Export cancelled.',2500);return}
+      if(code==='rate_limited'){toast('Wait a moment and export again.',3500);return}
+      if(code==='too_large'){toast('That period is too large to export in one file. Try a shorter one.',5000);return}
+      if(code==='extension_not_enabled'||code==='rejected_extension'){
+        try{
+          await dl.save({filename:name+'.txt',data:text});
+          toast('Saved as a text file. In Excel open it and choose "comma separated".',5500);
+          return;
+        }catch(e2){}
+      }
+    }
+  }
+  box.innerHTML='<div class="note-box" style="margin-top:11px">'+
+    '<strong>'+rows.length+(rows.length===1?' entry':' entries')+', ready to copy.</strong><br>'+
+    'Select everything in the box below and copy it, then paste it into a blank Excel sheet and use '+
+    'Data &rsaquo; Text to columns, separated by commas. On a phone, press and hold inside the box to select all.'+
+    '<textarea class="f" id="repCsv" rows="9" readonly style="margin-top:8px"></textarea>'+
+    '<div class="row no-print" style="margin-top:8px;gap:7px">'+
+      '<button class="btn" id="repCsvAll">Select it all</button>'+
+      '<button class="btn" id="repCsvHide">Close</button></div></div>';
+  $('repCsv').value=text; $('repCsv').focus(); $('repCsv').select();
+  $('repCsvAll').onclick=function(){$('repCsv').focus();$('repCsv').select()};
+  $('repCsvHide').onclick=function(){box.innerHTML=''};
+}
+
+/* ------------------------------ render ------------------------------ */
+function renderHistory(){
+  if(!isOffice())return;
+  var r=repRange(), rows=histRange(), priced=withCost(rows);
+  $('repRangeRow').hidden=(rep.mode!=='range');
+  Array.prototype.forEach.call($('repMode').querySelectorAll('.chip'),function(c){
+    c.setAttribute('aria-pressed',c.getAttribute('data-mode')===rep.mode?'true':'false')});
+  $('repLabel').textContent=r.label;
+  var stepping=(rep.mode!=='range');
+  $('repPrev').hidden=!stepping; $('repNext').hidden=!stepping; $('repNow').hidden=!stepping;
+  $('repNow').textContent=rep.mode==='day'?'Today':(rep.mode==='week'?'This week':'This month');
+  $('repNext').disabled=stepping&&r.to>=todayISO();
+
+  var dayCount={}; rows.forEach(function(e){dayCount[e.d]=1});
+  var nDays=Object.keys(dayCount).length;
+  var held=rows.filter(function(e){return e.local}).length;
+  $('histTiles').innerHTML=
+    tile('Entries',rows.length,nDays+(nDays===1?' day':' days')+' with wastage')+
+    tile('Value',priced.length?money(sumCost(rows)):'-',
+         priced.length?priced.length+' of '+rows.length+' priced':'no prices','money')+
+    tile('Busiest day',(function(){
+      var by={}; rows.forEach(function(e){by[e.d]=(by[e.d]||0)+1});
+      var k=Object.keys(by).sort(function(a,b){return by[b]-by[a]})[0];
+      return k?dayName(k):'-';
+    })(),'most entries')+
+    tile('Average a day',nDays?(Math.round(rows.length/nDays*10)/10):'-','entries')+
+    (held?tile('Not sent yet',held,'held on this phone','warn'):'');
+
+  $('repBreak').innerHTML=
+    breakTable('By item',rows,function(e){return e.item},'Item')+
+    breakTable('By reason',rows,function(e){return e.reason},'Reason')+
+    breakTable('By person',rows,function(e){return e.by},'Recorded by')+
+    ((rep.mode==='week'||rep.mode==='month'||rep.mode==='range')?dayTable(rows,r.from,r.to):'');
+
+  $('histList').innerHTML=listHtml(rows,true);
 }
 
 /* ------------------------------- send -------------------------------- */
@@ -582,17 +858,24 @@ function buildDocument(){
    view-only, lands here - so say which it is and what to do about it. */
 function goReadOnly(){
   readOnly=true;
-  $('sendState').innerHTML='<div class="note-box bad">'+
-    '<strong>Nothing can be sent from this phone yet.</strong><br>'+
-    'The page has opened in view-only mode. That happens when this phone is '+
-    'signed out of Claude - use the <strong>Sign in</strong> button at the very top of the screen - '+
-    'or when the account you signed in with was given the link to view but not to edit; '+
-    'the office has to share it again with editing allowed.'+
-    '<div style="margin-top:9px"><button class="btn" id="roReload">Reload and try again</button></div></div>';
+  $('sendState').innerHTML='<div class="note-box warn">'+
+    '<strong>This phone cannot reach the office yet.</strong><br>'+
+    'The page has opened in view-only mode - that happens when the phone is signed out of Claude '+
+    '(use <strong>Sign in</strong> at the very top of the screen), or when the account it is signed '+
+    'in to was given the link to read but not to edit. '+
+    '<strong>Keep recording anyway:</strong> what you enter is saved on this phone, shown in Today, '+
+    'and sent the moment the page can be written to.'+
+    '<div class="row no-print" style="margin-top:9px;gap:7px">'+
+      '<button class="btn" id="roReload">Reload and try again</button></div></div>';
   var rb=$('roReload'); if(rb)rb.onclick=function(){location.reload()};
-  var sb=$('sendBtn');
-  if(sb){sb.disabled=true; sb.textContent='Sending is off - view only'}
+  syncSendBtn();
   renderStamp();
+}
+/* The button says what pressing it will actually do. */
+function syncSendBtn(){
+  var b=$('sendBtn'); if(!b||sending)return;
+  b.disabled=false;
+  b.textContent=(apiKnown&&(readOnly||!api))?'Save on this phone':'Send wastage';
 }
 
 /* A submit is a publish, and a publish can lose a race. Stash first, send
@@ -606,9 +889,10 @@ function unstash(){
 }
 function clearStash(){try{sessionStorage.removeItem(PENDING)}catch(err){}}
 
+var lastSendCode='';
 async function pushEntry(entry,tries){
   if(sending)return false;
-  if(!api){goReadOnly();return false}
+  if(!api){lastSendCode='not_writer';goReadOnly();return false}
   sending=true; $('sendBtn').disabled=true; $('sendBtn').textContent='Sending…';
   stash(entry,tries||1);
   S.entries.unshift(entry);
@@ -618,14 +902,15 @@ async function pushEntry(entry,tries){
   try{
     await api.publish(buildDocument());
     clearStash();
-    sending=false;
+    sending=false; lastSendCode='';
     toast('Sent. Thank you.'+(dropped?' Older pictures were cleared to make room.':''),3200);
     return true;
   }catch(err){
     S.entries=S.entries.filter(function(x){return x.id!==entry.id});
     S.pub=prevPub; S.rev=prevRev;
-    sending=false; $('sendBtn').disabled=false; $('sendBtn').textContent='Send wastage';
+    sending=false; syncSendBtn();
     var code=(err&&err.code)||'upstream_error';
+    lastSendCode=code;
     if(code==='conflict'){
       /* the shell is already reloading us to the winning version; the
          stash carries this entry across and boot() sends it again */
@@ -644,6 +929,47 @@ async function pushEntry(entry,tries){
     }
     return false;
   }
+}
+
+/* Nothing a cook types is thrown away because the link happens to be
+   read-only. It goes into this phone's own store, appears in Today at
+   once, and waits there to be sent. */
+function keepOnPhone(e){
+  e.local=true; e.savedAt=new Date().toISOString();
+  LOCAL.unshift(e);
+  var kept=saveLocal();
+  clearForm(); render(); selectTab('tab-today');
+  toast(kept
+    ? 'Saved on this phone. It is in Today, but the office has not received it yet.'
+    : 'Saved for now, but this phone has no room to keep it after a reload. Forward it as text.',5200);
+}
+async function flushLocal(quiet){
+  if(!api||readOnly||!LOCAL.length)return 0;
+  var sent=0;
+  while(LOCAL.length){
+    var e=LOCAL[LOCAL.length-1];              /* oldest first */
+    var copy={}; for(var k in e){ if(k!=='local'&&k!=='savedAt')copy[k]=e[k] }
+    var ok=await pushEntry(copy,1);
+    if(!ok)break;
+    LOCAL.pop(); saveLocal(); sent++;
+  }
+  render();
+  if(sent&&!quiet)toast(sent+(sent===1?' entry has':' entries have')+' now reached the office.',4000);
+  else if(!sent&&!quiet)toast('Still not able to send from this phone.',4000);
+  return sent;
+}
+function localAsText(){
+  var out=['Shan Village - wastage held on this phone'];
+  LOCAL.slice().reverse().forEach(function(e){
+    out.push('- '+fmtDay(e.d)+' '+(e.t||'')+'  '+(e.item||'(not named)')+
+      (qtyText(e)?'  '+qtyText(e):'')+
+      (e.price!=null&&e.price!==''?'  '+money(e.price):'')+
+      (e.reason?'  ['+e.reason+']':'')+
+      (e.by?'  by '+e.by:'')+
+      (e.note?'  note: '+e.note:''));
+  });
+  out.push('('+LOCAL.length+(LOCAL.length===1?' entry':' entries')+'; pictures are not in this text)');
+  return out.join('\n');
 }
 
 function readForm(){
@@ -679,7 +1005,11 @@ function clearForm(){
 async function sendClicked(){
   var e=readForm(); if(!e)return;
   try{localStorage.setItem('sv-w-by',e.by||'')}catch(err){}
-  if(await pushEntry(e,1)){ clearForm(); render(); selectTab('tab-today') }
+  if(!api||readOnly){ keepOnPhone(e); return }
+  if(await pushEntry(e,1)){ clearForm(); render(); selectTab('tab-today'); return }
+  /* A conflict is already being retried from the stash after the reload;
+     anything else leaves the entry with nowhere to go, so keep it here. */
+  if(lastSendCode!=='conflict')keepOnPhone(e);
 }
 
 /* ------------------------------ office ------------------------------- */
@@ -795,15 +1125,37 @@ function wire(){
   $('printToday').onclick=function(){window.print()};
   $('printHist').onclick=function(){window.print()};
   ['histFrom','histTo'].forEach(function(id){$(id).onchange=renderHistory});
+  $('repMode').onclick=function(ev){
+    var b=ev.target.closest('[data-mode]'); if(!b)return;
+    rep.mode=b.getAttribute('data-mode'); rep.anchor=todayISO(); renderHistory();
+  };
+  $('repPrev').onclick=function(){repStep(-1)};
+  $('repNext').onclick=function(){repStep(1)};
+  $('repNow').onclick=function(){rep.anchor=todayISO();renderHistory()};
+  $('repExport').onclick=function(){
+    var r=repRange();
+    exportCsv(histRange(),'shan-village-wastage-'+(r.from||'all')+(r.from===r.to?'':'-to-'+(r.to||'today')));
+  };
+  $('repExportAll').onclick=function(){
+    exportCsv(sortEntries(allEntries()),'shan-village-wastage-master-'+todayISO());
+  };
   document.addEventListener('click',function(ev){
     var z=ev.target.closest('[data-zoom]'); if(z){
-      var e=S.entries.filter(function(x){return x.id===z.getAttribute('data-zoom')})[0];
+      var e=anyEntry(z.getAttribute('data-zoom'));
       if(e&&e.photo){var d=$('light');d.innerHTML='<img src="'+e.photo+'" alt="">';d.showModal();
         d.onclick=function(){d.close()}}
       return;
     }
     var ed=ev.target.closest('[data-edit]'); if(ed&&isOffice()){askEdit(ed.getAttribute('data-edit'));return}
     var dl=ev.target.closest('[data-del]'); if(dl&&isOffice()){delEntry(dl.getAttribute('data-del'));return}
+    var dp=ev.target.closest('[data-drop]');
+    if(dp){
+      var le=anyEntry(dp.getAttribute('data-drop'));
+      if(le&&confirm('Delete "'+(le.item||'this entry')+'"? It is only on this phone, so it cannot be recovered.')){
+        dropLocal(le.id); render(); toast('Deleted from this phone.');
+      }
+      return;
+    }
   });
   $('setSave').onclick=async function(){
     var c=$('setCur').value.trim(), k=Number($('setKeep').value);
@@ -833,7 +1185,9 @@ function boot(){
   try{applyTheme(localStorage.getItem('sv-w-theme')||'auto')}catch(e){applyTheme('auto')}
   try{var r0=sessionStorage.getItem('sv-w-role');
       if(r0==='owner'||r0==='admin'||r0==='chef'||r0==='staff')role=r0}catch(e){}
+  loadLocal();
   wire();
+  rep.anchor=todayISO();
   $('fDate').value=todayISO(); $('fTime').value=nowHM();
   try{$('fBy').value=localStorage.getItem('sv-w-by')||''}catch(e){}
   $('histTo').value=todayISO();
@@ -844,7 +1198,7 @@ function boot(){
   var reach = (window.claude&&typeof claude.use==='function')
     ? claude.use('artifact') : Promise.resolve(null);
   reach.then(async function(a){
-    api=a;
+    api=a; apiKnown=true; syncSendBtn();
     if(!a){goReadOnly();return}
     /* an entry that was in flight when somebody else won the race */
     var p=unstash();
@@ -854,11 +1208,15 @@ function boot(){
       else if((p.tries||1)<4){ if(await pushEntry(p.e,(p.tries||1)+1))render() }
       else{clearStash();toast('One entry could not be sent. Please send it again.',5000)}
     }
-  }).catch(function(){goReadOnly()});
+    /* This link can be written to, so anything this phone was holding
+       goes to the office now, oldest first. */
+    if(LOCAL.length)await flushLocal(true);
+    render();
+  }).catch(function(){apiKnown=true;goReadOnly()});
 
   /* a page nobody is working in catches up by itself */
   var AUTO=900000, AWAY=300000, hiddenAt=0;
-  function idle(){return !sending&&!isOffice()&&!photo&&!$('fItem').value.trim()}
+  function idle(){return !sending&&!isOffice()&&!photo&&!LOCAL.length&&!$('fItem').value.trim()}
   setInterval(function(){ if(idle()&&document.visibilityState==='visible')location.reload() },AUTO);
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}

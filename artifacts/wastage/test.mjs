@@ -17,8 +17,13 @@ async function open_(write){
 }
 const tabs=p=>p.$$eval('nav.tabs button',bs=>bs.filter(x=>!x.hidden).map(x=>x.textContent.trim()))
 
+async function staffIn(p){
+  await p.click('#lockBtn'); await p.fill('#lkCode','ShanStaff-2640');
+  await p.click('#lkGo'); await p.waitForTimeout(400);
+}
 // ---- staff, writable link ----
 let p=await open_(true)
+await staffIn(p)
 r.tabs_staff=await tabs(p)
 r.lockBtn=(await p.textContent('#lockBtn')).trim()
 r.dateDefault=await p.inputValue('#fDate')
@@ -52,11 +57,16 @@ r.currency=await p.inputValue('#setCur')
 r.keepDays=await p.inputValue('#setKeep')
 await p.close()
 
-// ---- view-only link ----
+// ---- view-only link: the entry is kept on the phone, not lost ----
 p=await open_(false)
-await p.fill('#fItem','Rice')
-await p.click('#sendBtn'); await p.waitForTimeout(700)
-r.readOnlyMsg=(await p.textContent('#sendState')).replace(/\s+/g,' ').trim().slice(0,90)
+await staffIn(p)
+await p.fill('#fItem','Rice'); await p.fill('#fQty','3'); await p.fill('#fBy','Su')
+await p.click('#sendBtn'); await p.waitForTimeout(900)
+r.readOnlyMsg=(await p.textContent('#sendState')).replace(/\s+/g,' ').trim().slice(0,80)
+r.readOnly_kept=await p.evaluate(()=>LOCAL.map(e=>e.item))
+r.readOnly_sent=await p.evaluate(()=>S.entries.length)
+r.readOnly_btn=(await p.textContent('#sendBtn')).trim()
+r.readOnly_tab=await p.$eval('nav.tabs button[aria-selected="true"]',e=>e.textContent.trim())
 await p.close()
 await b.close()
 console.log(JSON.stringify({r,errors},null,1))

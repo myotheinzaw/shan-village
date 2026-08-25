@@ -112,15 +112,37 @@ function wire(){
   $('printToday').onclick=function(){window.print()};
   $('printHist').onclick=function(){window.print()};
   ['histFrom','histTo'].forEach(function(id){$(id).onchange=renderHistory});
+  $('repMode').onclick=function(ev){
+    var b=ev.target.closest('[data-mode]'); if(!b)return;
+    rep.mode=b.getAttribute('data-mode'); rep.anchor=todayISO(); renderHistory();
+  };
+  $('repPrev').onclick=function(){repStep(-1)};
+  $('repNext').onclick=function(){repStep(1)};
+  $('repNow').onclick=function(){rep.anchor=todayISO();renderHistory()};
+  $('repExport').onclick=function(){
+    var r=repRange();
+    exportCsv(histRange(),'shan-village-wastage-'+(r.from||'all')+(r.from===r.to?'':'-to-'+(r.to||'today')));
+  };
+  $('repExportAll').onclick=function(){
+    exportCsv(sortEntries(allEntries()),'shan-village-wastage-master-'+todayISO());
+  };
   document.addEventListener('click',function(ev){
     var z=ev.target.closest('[data-zoom]'); if(z){
-      var e=S.entries.filter(function(x){return x.id===z.getAttribute('data-zoom')})[0];
+      var e=anyEntry(z.getAttribute('data-zoom'));
       if(e&&e.photo){var d=$('light');d.innerHTML='<img src="'+e.photo+'" alt="">';d.showModal();
         d.onclick=function(){d.close()}}
       return;
     }
     var ed=ev.target.closest('[data-edit]'); if(ed&&isOffice()){askEdit(ed.getAttribute('data-edit'));return}
     var dl=ev.target.closest('[data-del]'); if(dl&&isOffice()){delEntry(dl.getAttribute('data-del'));return}
+    var dp=ev.target.closest('[data-drop]');
+    if(dp){
+      var le=anyEntry(dp.getAttribute('data-drop'));
+      if(le&&confirm('Delete "'+(le.item||'this entry')+'"? It is only on this phone, so it cannot be recovered.')){
+        dropLocal(le.id); render(); toast('Deleted from this phone.');
+      }
+      return;
+    }
   });
   $('setSave').onclick=async function(){
     var c=$('setCur').value.trim(), k=Number($('setKeep').value);
@@ -150,7 +172,9 @@ function boot(){
   try{applyTheme(localStorage.getItem('sv-w-theme')||'auto')}catch(e){applyTheme('auto')}
   try{var r0=sessionStorage.getItem('sv-w-role');
       if(r0==='owner'||r0==='admin'||r0==='chef'||r0==='staff')role=r0}catch(e){}
+  loadLocal();
   wire();
+  rep.anchor=todayISO();
   $('fDate').value=todayISO(); $('fTime').value=nowHM();
   try{$('fBy').value=localStorage.getItem('sv-w-by')||''}catch(e){}
   $('histTo').value=todayISO();
@@ -161,7 +185,7 @@ function boot(){
   var reach = (window.claude&&typeof claude.use==='function')
     ? claude.use('artifact') : Promise.resolve(null);
   reach.then(async function(a){
-    api=a;
+    api=a; apiKnown=true; syncSendBtn();
     if(!a){goReadOnly();return}
     /* an entry that was in flight when somebody else won the race */
     var p=unstash();
@@ -171,11 +195,15 @@ function boot(){
       else if((p.tries||1)<4){ if(await pushEntry(p.e,(p.tries||1)+1))render() }
       else{clearStash();toast('One entry could not be sent. Please send it again.',5000)}
     }
-  }).catch(function(){goReadOnly()});
+    /* This link can be written to, so anything this phone was holding
+       goes to the office now, oldest first. */
+    if(LOCAL.length)await flushLocal(true);
+    render();
+  }).catch(function(){apiKnown=true;goReadOnly()});
 
   /* a page nobody is working in catches up by itself */
   var AUTO=900000, AWAY=300000, hiddenAt=0;
-  function idle(){return !sending&&!isOffice()&&!photo&&!$('fItem').value.trim()}
+  function idle(){return !sending&&!isOffice()&&!photo&&!LOCAL.length&&!$('fItem').value.trim()}
   setInterval(function(){ if(idle()&&document.visibilityState==='visible')location.reload() },AUTO);
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}

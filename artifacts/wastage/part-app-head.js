@@ -22,8 +22,9 @@ var PHOTO_EDGE=720;              /* longest side kept, in pixels          */
 var PHOTO_MAX=170000;            /* characters of data URI per photo      */
 var STATE_BUDGET=8500000;        /* characters of state before we shed    */
 var PENDING='sv-w-pending';      /* an entry in flight, across a reload   */
+var LOCALQ='sv-w-local';         /* entries this phone could not send yet */
 
-var api=null, role=null, readOnly=false, sending=false, tab='add';
+var api=null, apiKnown=false, role=null, readOnly=false, sending=false, tab='add';
 var photo=null, idleTimer=null;
 
 /* ------------------------------ time -------------------------------- */
@@ -73,14 +74,49 @@ function qtyText(e){
   if(e.qty==null||e.qty==='')return '';
   return (Math.round(Number(e.qty)*1000)/1000)+(e.unit?' '+e.unit:'');
 }
-function entriesOn(d){return S.entries.filter(function(e){return e.d===d})}
+/* ------------------------- kept on the phone -------------------------
+   A phone that cannot publish - signed out of Claude, or holding the link
+   with view rights only - must still be able to record wastage. Those
+   entries are kept in this browser, shown in the lists beside the sent
+   ones and clearly marked, and pushed to the office the moment the page
+   becomes writable. They are on one phone until then: that is said
+   plainly on screen rather than implied. */
+var LOCAL=[];
+function loadLocal(){
+  try{var raw=localStorage.getItem(LOCALQ); LOCAL=raw?JSON.parse(raw):[]}catch(e){LOCAL=[]}
+  if(!Array.isArray(LOCAL))LOCAL=[];
+  LOCAL.forEach(function(e){e.local=true});
+}
+function saveLocal(){
+  try{ localStorage.setItem(LOCALQ,JSON.stringify(LOCAL)); return true }
+  catch(err){
+    /* The phone is out of room. The words are worth more than the
+       picture, so let the oldest pictures go rather than the entry. */
+    for(var i=LOCAL.length-1;i>=0;i--){
+      if(LOCAL[i].photo){
+        delete LOCAL[i].photo; LOCAL[i].hadPhoto=true;
+        try{ localStorage.setItem(LOCALQ,JSON.stringify(LOCAL)); return true }catch(e2){}
+      }
+    }
+    return false;
+  }
+}
+function dropLocal(id){
+  LOCAL=LOCAL.filter(function(e){return e.id!==id});
+  saveLocal();
+}
+function allEntries(){return LOCAL.concat(S.entries)}
+function anyEntry(id){
+  return allEntries().filter(function(e){return e.id===id})[0]||null;
+}
+function entriesOn(d){return allEntries().filter(function(e){return e.d===d})}
 function sumCost(list){
   return list.reduce(function(n,e){var v=Number(e.price);return n+(isFinite(v)?v:0)},0);
 }
 function withCost(list){return list.filter(function(e){return isFinite(Number(e.price))&&e.price!==''&&e.price!=null})}
 function days(){
   var seen={};
-  S.entries.forEach(function(e){seen[e.d]=1});
+  allEntries().forEach(function(e){seen[e.d]=1});
   return Object.keys(seen).sort().reverse();
 }
 function toast(msg,ms){
