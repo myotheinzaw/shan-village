@@ -105,11 +105,19 @@ async function codeHash(code,salt){
 }
 function getLocks(){return S.locks||null}
 function hasLocks(){var l=getLocks();return !!(l&&(l.owner||l.admin||l.chef))}
-function isOffice(){return role!==null}
-function roleName(r){return r==='chef'?'Chef':(r==='admin'?'Admin':(r==='owner'?'Owner':''))}
+/* The office roles - the three that may look back past today and change
+   settings. Staff is deliberately not one of them. */
+function isOffice(){return role==='owner'||role==='admin'||role==='chef'}
+/* Sending needs a code only once a staff code exists. Until then the link
+   behaves as it always has: open it and send. */
+function needsCode(){var l=getLocks();return !!(l&&l.staff)}
+function canSend(){return !needsCode()||role!==null}
+function roleName(r){return r==='chef'?'Chef':(r==='admin'?'Admin':(r==='owner'?'Owner':(r==='staff'?'Staff':'')))}
 
 function refreshMode(){
   document.body.classList.toggle('is-office',isOffice());
+  var gate=$('sendGate'); if(gate)gate.hidden=canSend();
+  var form=$('sendForm'); if(form)form.hidden=!canSend();
   ['tab-history','tab-settings'].forEach(function(id){
     var b=$(id); if(b)b.hidden=!isOffice();
   });
@@ -117,7 +125,7 @@ function refreshMode(){
   var b=$('lockBtn');
   var shut='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>';
   var open='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.8-1.3"/></svg>';
-  if(!isOffice()){b.className='btn-lock';b.innerHTML=shut+'Office'}
+  if(role===null){b.className='btn-lock';b.innerHTML=shut+(needsCode()?'Sign in':'Office')}
   else{b.className='btn-lock open';b.innerHTML=open+roleName(role)+' - lock'}
   render();
 }
@@ -134,18 +142,22 @@ function unlockAs(r){
 }
 function armIdle(){
   clearTimeout(idleTimer);
-  if(!isOffice())return;
-  idleTimer=setTimeout(function(){ if(isOffice()){lockNow(true);toast('Locked again after 15 minutes.',4000)} },900000);
+  if(role===null)return;
+  /* Staff stay signed in across a shift; the office locks sooner. */
+  var ms = role==='staff' ? 28800000 : 900000;
+  idleTimer=setTimeout(function(){
+    if(role!==null){lockNow(true);toast('Signed out after a while without use.',4000)}
+  },ms);
 }
 ['pointerdown','keydown'].forEach(function(ev){
-  document.addEventListener(ev,function(){ if(isOffice())armIdle() },{passive:true});
+  document.addEventListener(ev,function(){ if(role!==null)armIdle() },{passive:true});
 });
 
 function sheet(html){var d=$('sheet');d.innerHTML=html;d.showModal();return d}
 function askUnlock(){
   if(!cryptoOk()){toast('This browser cannot check the code.',4000);return}
-  var d=sheet('<div class="sheet"><div class="sheet-head"><h3>Office access</h3>'+
-    '<div class="who">Owner, admin or chef code. Staff do not need one to send wastage.</div></div>'+
+  var d=sheet('<div class="sheet"><div class="sheet-head"><h3>Sign in</h3>'+
+    '<div class="who">Staff code to send wastage. Owner, admin or chef code for everything else.</div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
     '<div><label class="lbl" for="lkCode">Code</label>'+
     '<input class="f pin" id="lkCode" type="password" autocomplete="off"></div></div>'+
@@ -157,6 +169,7 @@ function askUnlock(){
     if(l.owner&&await codeHash(v,l.owner.salt)===l.owner.hash)m='owner';
     else if(l.admin&&await codeHash(v,l.admin.salt)===l.admin.hash)m='admin';
     else if(l.chef&&await codeHash(v,l.chef.salt)===l.chef.hash)m='chef';
+    else if(l.staff&&await codeHash(v,l.staff.salt)===l.staff.hash)m='staff';
     if(m){d.close();unlockAs(m)}
     else{
       $('lkErr').innerHTML='<div class="note-box bad">That code is not right.</div>';
@@ -168,7 +181,21 @@ function askUnlock(){
   $('lkCode').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();go()}};
   setTimeout(function(){$('lkCode').focus()},60);
 }
-function lockClicked(){ isOffice()?lockNow():askUnlock() }
+function lockClicked(){ role!==null?lockNow():askUnlock() }
+
+/* Changing the staff code is worth a line in the change log: it is the
+   moment every phone that had the old one stops being able to send. */
+function logStaffCodeChange(){
+  if(!S.log)S.log=[];
+  S.log.unshift({t:new Date().toISOString(),who:role,items:['Staff code changed'],more:0});
+}
+function staffCodeState(){
+  var e=$('staffCodeState'); if(!e)return;
+  var l=getLocks()||{};
+  e.textContent = l.staff
+    ? 'A staff code is set. Everyone sending wastage needs it. Type a new one here to replace it.'
+    : 'No staff code yet - anyone with the link can send. Type one here to require it.';
+}
 
 /* ------------------------------ photos ------------------------------
    A phone camera hands over three to five megabytes. That cannot go into
@@ -301,7 +328,13 @@ LOGO,
 /* ---- add ---- */
 '  <section class="panel" id="panel-add" role="tabpanel" aria-labelledby="tab-add">',
 '    <div id="sendState"></div>',
-'    <div class="card card-pad" style="display:flex;flex-direction:column;gap:15px">',
+'    <div class="card card-pad" id="sendGate" hidden>',
+'      <h2 class="sec">Sign in to send</h2>',
+'      <p class="sec">Wastage is recorded against the kitchen, so we ask for the staff code first. '+
+'One code for everybody - ask the office for it.</p>',
+'      <button class="btn-send" id="gateBtn" style="margin-top:13px">Enter the staff code</button>',
+'    </div>',
+'    <div class="card card-pad" id="sendForm" style="display:flex;flex-direction:column;gap:15px">',
 '      <div>',
 '        <span class="lbl">Picture</span>',
 '        <div class="shot">',
@@ -385,6 +418,9 @@ LOGO,
 '      <div class="field"><label class="lbl" for="setReasons">Reasons offered</label>',
 '        <textarea class="f" id="setReasons" style="min-height:120px"></textarea>',
 '        <div class="hint">One per line, in the order they should appear.</div></div>',
+'      <div class="field"><label class="lbl" for="setStaffCode">Staff code</label>',
+'        <input class="f" id="setStaffCode" type="text" autocomplete="off" placeholder="leave empty to keep the current one">',
+'        <div class="hint" id="staffCodeState"></div></div>',
 '      <div class="field"><label class="lbl" for="setUnits">Units offered</label>',
 '        <input class="f" id="setUnits">',
 '        <div class="hint">Separated by commas.</div></div>',
@@ -517,6 +553,7 @@ function renderSettings(){
   $('setKeep').value=keepDays();
   $('setReasons').value=(S.reasons||[]).join('\n');
   $('setUnits').value=(S.units||[]).join(', ');
+  staffCodeState();
 }
 function render(){
   renderStamp(); renderForm(); renderToday();
@@ -612,7 +649,8 @@ function readForm(){
     reason:$('reasonChips').getAttribute('data-value')||'',
     note:$('fNote').value.trim(),
     price:price===''?null:Number(price),
-    by:$('fBy').value.trim()
+    by:$('fBy').value.trim(),
+    role:role||''
   };
   if(e.qty!=null&&(!isFinite(e.qty)||e.qty<0)){toast('That quantity is not a number.',3000);return null}
   if(e.price!=null&&(!isFinite(e.price)||e.price<0)){toast('That value is not a number.',3000);return null}
@@ -714,6 +752,7 @@ function wire(){
   $('thAuto').onclick=function(){applyTheme('auto')};
   $('thDark').onclick=function(){applyTheme('dark')};
   $('lockBtn').onclick=lockClicked;
+  $('gateBtn').onclick=askUnlock;
   $('refreshBtn').onclick=function(){
     var b=$('refreshBtn'); b.disabled=true; b.classList.add('busy'); location.reload();
   };
@@ -761,6 +800,16 @@ function wire(){
     if(!rs.length){toast('Keep at least one reason.',3000);return}
     if(!isFinite(k)||k<1){toast('Days must be a number of at least 1.',3000);return}
     S.cur=c||'AED'; S.keep=Math.round(k); S.reasons=rs; S.units=us;
+    var newCode=$('setStaffCode').value.trim();
+    if(newCode){
+      if(newCode.length<4){toast('The staff code needs at least 4 characters.',3500);return}
+      if(!cryptoOk()){toast('This browser cannot set a code.',3500);return}
+      var salt=randSalt();
+      if(!S.locks)S.locks={};
+      S.locks.staff={salt:salt,hash:await codeHash(newCode,salt)};
+      $('setStaffCode').value='';
+      logStaffCodeChange();
+    }
     shedPhotos();
     await saveState('Settings saved.'); render();
   };
@@ -771,7 +820,7 @@ function boot(){
   document.getElementById('root').innerHTML=SHELL;
   try{applyTheme(localStorage.getItem('sv-w-theme')||'auto')}catch(e){applyTheme('auto')}
   try{var r0=sessionStorage.getItem('sv-w-role');
-      if(r0==='owner'||r0==='admin'||r0==='chef')role=r0}catch(e){}
+      if(r0==='owner'||r0==='admin'||r0==='chef'||r0==='staff')role=r0}catch(e){}
   wire();
   $('fDate').value=todayISO(); $('fTime').value=nowHM();
   try{$('fBy').value=localStorage.getItem('sv-w-by')||''}catch(e){}
