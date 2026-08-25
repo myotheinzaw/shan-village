@@ -576,10 +576,22 @@ function buildDocument(){
     +'<script id="app">'+app+'<\/script></body></html>';
 }
 
+/* Sending a wastage entry republishes this page, and only a signed-in
+   Claude account with edit access to the link may do that. A phone that
+   is signed out, or signed in to an account the link was shared with
+   view-only, lands here - so say which it is and what to do about it. */
 function goReadOnly(){
   readOnly=true;
-  $('sendState').innerHTML='<div class="note-box bad">This link can be read but not written to, so nothing you send here can reach the office. '+
-    'Ask for the link that allows sending.</div>';
+  $('sendState').innerHTML='<div class="note-box bad">'+
+    '<strong>Nothing can be sent from this phone yet.</strong><br>'+
+    'The page has opened in view-only mode. That happens when this phone is '+
+    'signed out of Claude - use the <strong>Sign in</strong> button at the very top of the screen - '+
+    'or when the account you signed in with was given the link to view but not to edit; '+
+    'the office has to share it again with editing allowed.'+
+    '<div style="margin-top:9px"><button class="btn" id="roReload">Reload and try again</button></div></div>';
+  var rb=$('roReload'); if(rb)rb.onclick=function(){location.reload()};
+  var sb=$('sendBtn');
+  if(sb){sb.disabled=true; sb.textContent='Sending is off - view only'}
   renderStamp();
 }
 

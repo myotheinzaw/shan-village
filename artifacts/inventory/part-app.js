@@ -160,8 +160,8 @@ function refreshMode(){
   document.body.classList.toggle('is-manager',canManage());
   ['tab-items','tab-settings','tab-audit'].forEach(function(id){var b=$(id);if(b)b.hidden=!canManage()});
   var c=$('tab-count'); if(c)c.hidden=!canCount();
-  if((tab==='items'||tab==='settings'||tab==='audit')&&!canManage())selectTab('tab-dash');
-  if(tab==='count'&&!canCount())selectTab('tab-dash');
+  if((tab==='items'||tab==='settings'||tab==='audit')&&!canManage())selectTab('tab-stock');
+  if(tab==='count'&&!canCount())selectTab('tab-stock');
   var b=$('lockBtn');
   var shut='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>';
   var open='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.8-1.3"/></svg>';
@@ -170,7 +170,12 @@ function refreshMode(){
   render();
 }
 function lockNow(quiet){
-  role=null; session=null; clearTimeout(idleTimer);
+  role=null; clearTimeout(idleTimer);
+  /* Signing out in the middle of a count must not leave the count on
+     screen for whoever picks the phone up next - and must not lose the
+     lines already typed. */
+  if(session){ clearTimeout(saveTimer); saveState(null,true) }
+  hideRun();
   try{sessionStorage.removeItem('sv-i-role')}catch(e){}
   refreshMode(); if(!quiet)toast('Signed out.');
 }
@@ -178,6 +183,8 @@ function unlockAs(r){
   role=r;
   try{sessionStorage.setItem('sv-i-role',r)}catch(e){}
   armIdle(); refreshMode();
+  /* Signing in is nearly always the start of a count, so land there. */
+  if(canCount()&&(tab==='stock'||tab==='dash'))selectTab('tab-count');
   toast('Signed in as '+roleName(r)+'.');
 }
 function armIdle(){
@@ -329,34 +336,15 @@ LOGO,
 '  </div>',
 '</header>',
 '<nav class="tabs" role="tablist" aria-label="Sections">',
-'  <button role="tab" id="tab-dash" aria-selected="true">Dashboard</button>',
+'  <button role="tab" id="tab-count" aria-selected="true" hidden>Stock take</button>',
 '  <button role="tab" id="tab-stock" aria-selected="false">Current stock</button>',
-'  <button role="tab" id="tab-count" aria-selected="false" hidden>Stock take</button>',
 '  <button role="tab" id="tab-items" aria-selected="false" hidden>Item master</button>',
 '  <button role="tab" id="tab-settings" aria-selected="false" hidden>Settings</button>',
 '  <button role="tab" id="tab-audit" aria-selected="false" hidden>Audit log</button>',
+'  <button role="tab" id="tab-dash" aria-selected="false">Dashboard</button>',
 '</nav>',
 '<main>',
 '  <div id="banner"></div>',
-
-/* ---- dashboard ---- */
-'  <section class="panel" id="panel-dash">',
-'    <div class="tiles" id="dashTiles"></div>',
-'    <div class="card card-pad">',
-'      <div class="row"><h2 class="sec">Attention required</h2><div class="spacer"></div>',
-'        <span class="faint" id="attnCount"></span></div>',
-'      <p class="sec">Out of stock, critical and low items for the location above.</p>',
-'    </div>',
-'    <div class="wrap"><table id="attnTable"></table></div>',
-'    <div class="card card-pad">',
-'      <div class="row"><h2 class="sec">Value by location</h2></div>',
-'      <div class="wrap" style="margin-top:9px;border:0"><table id="locTable"></table></div>',
-'    </div>',
-'    <div class="card card-pad">',
-'      <h2 class="sec">Recent stock takes</h2>',
-'      <div class="wrap" style="margin-top:9px;border:0"><table id="recentTakes"></table></div>',
-'    </div>',
-'  </section>',
 
 /* ---- current stock ---- */
 '  <section class="panel" id="panel-stock" hidden>',
@@ -386,7 +374,13 @@ LOGO,
 '          <div class="field"><label class="lbl" for="ctLoc">Location</label><select class="f" id="ctLoc"></select></div>',
 '          <div class="field"><label class="lbl" for="ctDate">Date</label><input class="f" id="ctDate" type="date"></div>',
 '        </div>',
-'        <div class="field" style="margin-top:11px"><label class="lbl" for="ctCat">Only this category</label>',
+'        <div class="field" style="margin-top:11px"><label class="lbl">How do you want to count?</label>',
+'          <div class="chips" id="ctMode">',
+'            <button type="button" class="chip" data-mode="manual" aria-pressed="true">One by one, with a photo</button>',
+'            <button type="button" class="chip" data-mode="list" aria-pressed="false">Work down the item list</button>',
+'          </div>',
+'          <div class="hint" id="ctModeHint"></div></div>',
+'        <div class="field" id="ctCatWrap" hidden><label class="lbl" for="ctCat">Only this category</label>',
 '          <select class="f" id="ctCat"></select></div>',
 '        <div id="ctWarn" style="margin-top:11px"></div>',
 '        <button class="btn-big" id="ctStart" style="margin-top:13px">Start counting</button>',
@@ -401,6 +395,7 @@ LOGO,
 '        <div class="progbar"><i id="runBar" style="width:0%"></i></div>',
 '        <div class="progtext" id="runText"></div>',
 '      </div>',
+'      <button class="btn-big no-print" id="runAdd" style="margin:10px 0">Add an item to this count</button>',
 '      <div class="card card-pad no-print"><div class="grid2">',
 '        <div class="field"><label class="lbl" for="runSearch">Find an item</label>',
 '          <input class="f" id="runSearch" placeholder="Name or SKU" autocomplete="off"></div>',
@@ -469,6 +464,25 @@ LOGO,
 '      <p class="sec">Every change that matters, newest first, in '+'Abu Dhabi time.</p></div>',
 '    <div class="wrap"><table id="auditTable"></table></div>',
 '  </section>',
+
+/* ---- dashboard ---- */
+'  <section class="panel" id="panel-dash" hidden>',
+'    <div class="tiles" id="dashTiles"></div>',
+'    <div class="card card-pad">',
+'      <div class="row"><h2 class="sec">Attention required</h2><div class="spacer"></div>',
+'        <span class="faint" id="attnCount"></span></div>',
+'      <p class="sec">Out of stock, critical and low items for the location above.</p>',
+'    </div>',
+'    <div class="wrap"><table id="attnTable"></table></div>',
+'    <div class="card card-pad" id="cardLocValue">',
+'      <div class="row"><h2 class="sec">Value by location</h2></div>',
+'      <div class="wrap" style="margin-top:9px;border:0"><table id="locTable"></table></div>',
+'    </div>',
+'    <div class="card card-pad" id="cardRecentTakes">',
+'      <h2 class="sec">Recent stock takes</h2>',
+'      <div class="wrap" style="margin-top:9px;border:0"><table id="recentTakes"></table></div>',
+'    </div>',
+'  </section>',
 '</main>',
 '<dialog id="sheet"></dialog>',
 '<dialog id="light" class="lightbox"></dialog>',
@@ -524,16 +538,19 @@ function renderDash(){
     .sort(function(a,b){return a.date<b.date?1:-1})[0];
   var varVal=lastApproved?n2(lastApproved.varValue||0):null;
 
+  /* A stock taker sees what is on the shelves; money, pending approvals and
+     the count history are the office's business. */
   $('dashTiles').innerHTML=
-    (canSeeCost()?tile('Inventory value',money(totalVal),locName(loc)):
-                  tile('Items tracked',items.length,locName(loc)))+
-    tile('Active items',items.length,'in the master')+
+    (canSeeCost()?tile('Inventory value',money(totalVal),locName(loc)):'')+
+    tile('Active items',items.length,canSeeCost()?'in the master':'at '+locName(loc))+
     tile('Out of stock',byStatus.out,'need ordering now',byStatus.out?'bad':'')+
     tile('Low or critical',byStatus.crit+byStatus.low,'below reorder level',(byStatus.crit+byStatus.low)?'warn':'')+
-    tile('Pending stock takes',pending,pending?'awaiting approval':'none open',pending?'warn':'')+
+    (canManage()?tile('Pending stock takes',pending,pending?'awaiting approval':'none open',pending?'warn':''):'')+
     (canSeeCost()?tile('Last count variance',varVal===null?'-':money(varVal),
         lastApproved?fmtDay(lastApproved.date):'no approved count',
         (varVal!==null&&varVal<0)?'bad':''):'');
+  $('cardLocValue').hidden=!canManage();
+  $('cardRecentTakes').hidden=!canManage();
 
   $('attnCount').textContent=attn.length+' item'+(attn.length===1?'':'s');
   var h='<thead><tr><th>Item</th><th>Status</th><th class="n">On hand</th><th class="n">Reorder at</th>'+
@@ -719,14 +736,16 @@ function renderTakeHome(){
   fillSelect($('ctCat'),catOptions(true),true);
   if(!$('ctDate').value)$('ctDate').value=todayISO();
   checkDuplicate();
-  var h='<thead><tr><th>Reference</th><th>Location</th><th>Date</th><th>Status</th><th class="n">Counted</th>'+
+  var h='<thead><tr><th>Reference</th><th>Location</th><th>Date</th><th>Status</th><th>Counted by</th><th class="n">Counted</th>'+
         (canSeeCost()?'<th class="n">Variance</th>':'')+'<th></th></tr></thead><tbody>';
   var rows=(S.takes||[]).slice().sort(function(a,b){return a.date<b.date?1:(a.ref<b.ref?1:-1)});
   if(!rows.length)h+='<tr><td colspan="7" class="empty">No stock take yet.</td></tr>';
-  rows.slice(0,40).forEach(function(t){
+  rows.slice(0,canManage()?40:10).forEach(function(t){
     var lines=Object.keys(t.lines||{}).length;
     h+='<tr><td class="name">'+esc(t.ref)+'</td><td>'+esc(locName(t.loc))+'</td><td>'+esc(fmtDay(t.date))+'</td>'+
-       '<td>'+takePill(t.status)+'</td><td class="n">'+countedOf(t)+' / '+lines+'</td>'+
+       '<td>'+takePill(t.status)+'</td>'+
+       '<td>'+esc((t.byNames||[]).join(', ')||roleName(t.by)||'-')+'</td>'+
+       '<td class="n">'+countedOf(t)+' / '+lines+'</td>'+
        (canSeeCost()?'<td class="n">'+(t.varValue==null?'-':money(t.varValue))+'</td>':'')+
        '<td class="no-print"><button class="btn" data-open="'+t.id+'" style="padding:5px 10px;font-size:12px">'+
        (t.status==='locked'?'View':'Open')+'</button></td></tr>';
@@ -743,17 +762,23 @@ function checkDuplicate(){
   $('ctStart').textContent='Continue '+ex.ref;
 }
 
+function countMode(){
+  var b=document.querySelector('#ctMode .chip[aria-pressed="true"]');
+  return b?b.getAttribute('data-mode'):'manual';
+}
 function startTake(){
   var locId=$('ctLoc').value, date=$('ctDate').value||todayISO(), cat=$('ctCat').value;
   if(!locId){toast('Pick a location.');return}
   var ex=openTakeFor(locId,date);
   if(ex){session=ex.id;showRun();return}
-  var lines={};
-  activeItems().filter(function(it){return !cat||it.cat===cat}).forEach(function(it){
-    lines[it.id]={q:null,sys:qtyOf(it.id,locId),cost:Number(it.cost||0),unit:it.unit||''};
-  });
-  if(!Object.keys(lines).length){toast('No active items to count.',3500);return}
-  var t={id:uid('t'),ref:nextRef(date),loc:locId,date:date,status:'in_progress',
+  var mode=countMode(), lines={};
+  if(mode==='list'){
+    activeItems().filter(function(it){return !cat||it.cat===cat}).forEach(function(it){
+      lines[it.id]={q:null,sys:qtyOf(it.id,locId),cost:Number(it.cost||0),unit:it.unit||''};
+    });
+    if(!Object.keys(lines).length){toast('No active items to count. Use "one by one" instead.',4500);return}
+  }
+  var t={id:uid('t'),ref:nextRef(date),loc:locId,date:date,status:'in_progress',mode:mode,
          startedAt:new Date().toISOString(),by:role,lines:lines};
   if(!S.takes)S.takes=[];
   S.takes.unshift(t);
@@ -765,8 +790,17 @@ function startTake(){
 function showRun(){ $('countHome').hidden=true; $('countRun').hidden=false; renderRun() }
 function hideRun(){ session=null; $('countRun').hidden=true; $('countHome').hidden=false; renderTakeHome() }
 
-function lineVariance(L){
+/* An item counted for the very first time has no book figure to differ
+   from - the count IS the opening stock. Calling that a variance would
+   demand a photo and a written reason for every line of a kitchen's first
+   count, and would report the whole opening stock as a discrepancy. */
+function isOpening(id,L){
+  var it=item(id);
+  return !!(it&&it.createdIn&&L&&!Number(L.sys||0));
+}
+function lineVariance(L,id){
   if(L.q==null||L.q==='')return null;
+  if(id&&isOpening(id,L))return {vq:0, vv:0, opening:true};
   var vq=n3(Number(L.q)-Number(L.sys||0));
   return {vq:vq, vv:n2(vq*Number(L.cost||0))};
 }
@@ -776,7 +810,7 @@ function renderRun(){
   $('runTitle').textContent=t.ref+' - '+locName(t.loc)+' - '+fmtDay(t.date);
   $('runBar').style.width=(ids.length?Math.round(done/ids.length*100):0)+'%';
   var varN=0, varV=0;
-  ids.forEach(function(k){var v=lineVariance(t.lines[k]); if(v&&v.vq!==0){varN++;varV+=v.vv}});
+  ids.forEach(function(k){var v=lineVariance(t.lines[k],k); if(v&&v.vq!==0){varN++;varV+=v.vv}});
   $('runText').innerHTML='<span><strong>'+done+' / '+ids.length+'</strong> counted</span>'+
     '<span>'+varN+' with a variance</span>'+
     (canSeeCost()?'<span>'+money(varV)+' value difference</span>':'')+
@@ -790,18 +824,20 @@ function renderRun(){
       var counted=(r.L.q!=null&&r.L.q!=='');
       if(show==='todo'&&counted)return false;
       if(show==='done'&&!counted)return false;
-      if(show==='var'){var v=lineVariance(r.L); if(!v||v.vq===0)return false}
+      if(show==='var'){var v=lineVariance(r.L,r.id); if(!v||v.vq===0)return false}
       return true;
     }).sort(function(a,b){return a.it.name.localeCompare(b.it.name)});
 
   var h='';
   if(!rows.length)h='<div class="card empty">Nothing to show here.</div>';
   rows.slice(0,400).forEach(function(r){
-    var L=r.L, counted=(L.q!=null&&L.q!==''), v=lineVariance(L);
+    var L=r.L, counted=(L.q!=null&&L.q!==''), v=lineVariance(L,r.id);
     var cls='countrow'+(counted?(Number(L.q)===0?' zero':' done'):'');
     h+='<div class="'+cls+'" data-line="'+r.id+'">'+
        '<div class="crhead"><span class="nm">'+esc(r.it.name)+'</span>'+
          '<span class="faint" style="font-size:11.5px;font-family:var(--font-mono)">'+esc(r.it.sku||'')+'</span>'+
+         (L.by||L.hm?'<span class="faint" style="font-size:11.5px">'+
+            [L.hm,L.byName||roleName(L.by)].filter(Boolean).map(esc).join(' &middot; ')+'</span>':'')+
          (canSeeCost()?'<span class="sys">book '+n3(L.sys)+' '+esc(L.unit||'')+'</span>':'')+'</div>'+
        '<div class="qtyrow">'+
          (locked?'':'<button class="qbtn" data-minus="'+r.id+'" aria-label="Less">&minus;</button>')+
@@ -812,6 +848,7 @@ function renderRun(){
        '</div>'+
        '<div class="crfoot">'+
          (!v ? '<span class="faint" style="font-size:12px">blank means not counted yet</span>'
+             : v.opening ? '<span class="pill grey">First count - opening stock</span>'
              : v.vq===0 ? '<span class="pill ok">Matches the book</span>'
              : '<span class="vardot '+(v.vq<0?'neg':'pos')+'">'+(v.vq>0?'+':'')+v.vq+' '+esc(L.unit||'')+'</span>')+
          (v&&v.vq!==0?' <span class="pill '+VAR_CLASS[varianceStatus(v.vq,L.sys,v.vv)]+'">'+
@@ -848,6 +885,96 @@ function renderRun(){
   wireRunFoot();
 }
 
+/* Counting one shelf at a time, the way the wastage page works: name it,
+   count it, photograph it, next. Nothing has to exist in the item master
+   first - an item typed here is created as it is counted, so a kitchen can
+   start on day one with an empty master. */
+function addCountSheet(){
+  var t=takeById(session); if(!t)return;
+  if(t.status==='locked'||t.status==='approved'){toast('This count is locked.');return}
+  var names={}; activeItems().forEach(function(i){names[i.name]=i});
+  var units={}; S.items.forEach(function(i){if(i.unit)units[i.unit]=1});
+  ['kg','g','L','ml','pcs','bottle','box','tray','tin','packet','bag'].forEach(function(u){units[u]=1});
+  var lastBy=''; try{lastBy=localStorage.getItem('sv-i-by')||''}catch(e){}
+
+  sheet('<div class="sheet"><div class="sheet-head"><h3>Count an item</h3>'+
+    '<div class="who">'+esc(locName(t.loc))+' &middot; '+esc(fmtDay(t.date))+'</div></div>'+
+    '<div class="sheet-body">'+
+    '<div><span class="lbl">Picture</span>'+
+      '<div class="shot">'+
+        '<button type="button" class="shot-btn" id="acShot">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.2-2h6.2l1.2 2h1.7A2.5 2.5 0 0 1 20 8.5v9A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5Z"/><circle cx="11.9" cy="13" r="3.6"/></svg>'+
+          'Take a picture</button>'+
+        '<div class="shot-prev" id="acPrev" hidden><img id="acImg" alt="">'+
+          '<button type="button" class="shot-drop" id="acDrop" aria-label="Remove">&times;</button></div>'+
+      '</div><div class="hint" id="acHint">Optional, but it settles most questions later.</div></div>'+
+    '<div class="field"><label class="lbl" for="acItem">What did you count?</label>'+
+      '<input class="f" id="acItem" list="acItemList" autocomplete="off" placeholder="Cooking oil, chicken thigh, rice&hellip;">'+
+      '<datalist id="acItemList">'+Object.keys(names).sort().map(function(x){
+        return '<option value="'+esc(x)+'">'}).join('')+'</datalist>'+
+      '<div class="hint">If it is not on the list yet it will be added.</div></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label class="lbl" for="acQty">How many</label>'+
+        '<input class="f num" id="acQty" type="number" inputmode="decimal" step="any" min="0" placeholder="0"></div>'+
+      '<div class="field"><label class="lbl" for="acUnit">Unit</label>'+
+        '<input class="f" id="acUnit" list="acUnitList" autocomplete="off" placeholder="bottle, kg&hellip;">'+
+        '<datalist id="acUnitList">'+Object.keys(units).sort().map(function(u){
+          return '<option value="'+esc(u)+'">'}).join('')+'</datalist></div>'+
+    '</div>'+
+    '<div class="field"><label class="lbl" for="acNote">Note</label>'+
+      '<textarea class="f" id="acNote" placeholder="Anything the office should know"></textarea></div>'+
+    '<div class="field"><label class="lbl" for="acBy">Your name</label>'+
+      '<input class="f" id="acBy" autocomplete="off" value="'+esc(lastBy)+'" placeholder="Who counted this"></div>'+
+    '<div id="acErr"></div>'+
+    '</div><div class="sheet-foot"><button class="btn" id="acCancel">Cancel</button>'+
+    '<button class="btn primary" id="acSave">Save and count another</button></div></div>');
+
+  var shot=null;
+  $('acShot').onclick=function(){ photoFor='__add'; $('photoFile').click() };
+  window.__acPhoto=function(dataUrl){
+    shot=dataUrl; $('acImg').src=dataUrl; $('acPrev').hidden=false;
+    $('acHint').textContent='Picture ready ('+Math.round(dataUrl.length/1024)+' KB).';
+  };
+  $('acDrop').onclick=function(){shot=null;$('acPrev').hidden=true;$('acImg').removeAttribute('src');
+    $('acHint').textContent='Optional, but it settles most questions later.'};
+  $('acCancel').onclick=function(){window.__acPhoto=null;closeSheet()};
+  $('acSave').onclick=function(){
+    var name=$('acItem').value.trim();
+    var qtyRaw=$('acQty').value.trim();
+    if(!name){$('acErr').innerHTML='<div class="note-box bad">Say what you counted.</div>';return}
+    if(qtyRaw===''){$('acErr').innerHTML='<div class="note-box bad">Put a number. If the shelf is empty write 0 - that is different from leaving it blank.</div>';return}
+    var qty=Number(qtyRaw);
+    if(!isFinite(qty)||qty<0){$('acErr').innerHTML='<div class="note-box bad">That quantity is not a number.</div>';return}
+    var unit=$('acUnit').value.trim();
+    var it=names[name];
+    if(!it){
+      it={id:uid('i'),name:name,unit:unit,active:true,cat:'',createdIn:t.ref};
+      S.items.push(it);
+      logIt('Item created while counting',name+(unit?' ('+unit+')':''));
+    }else if(unit&&!it.unit){ it.unit=unit }
+    var L=t.lines[it.id];
+    if(!L){ L=t.lines[it.id]={sys:qtyOf(it.id,t.loc),cost:Number(it.cost||0),unit:it.unit||unit||''} }
+    L.q=n3(qty);
+    L.unit=it.unit||unit||L.unit||'';
+    L.note=$('acNote').value.trim();
+    L.by=role; L.byName=$('acBy').value.trim(); L.at=new Date().toISOString(); L.hm=nowHM();
+    /* The count as a whole records who counted. A second name is added
+       rather than replacing the first: two people often split the shelves. */
+    if(L.byName){
+      t.byNames=t.byNames||[];
+      if(t.byNames.indexOf(L.byName)<0)t.byNames.push(L.byName);
+    }
+    if(shot)L.photo=shot;
+    try{localStorage.setItem('sv-i-by',L.byName||'')}catch(e){}
+    window.__acPhoto=null;
+    closeSheet();
+    saveState('Counted '+name+'.');
+    render();
+    setTimeout(addCountSheet,120);          /* straight on to the next one */
+  };
+  setTimeout(function(){$('acItem').focus()},60);
+}
+
 function setQty(id,val){
   var t=takeById(session); if(!t||t.status==='locked'||t.status==='approved')return;
   var L=t.lines[id]; if(!L)return;
@@ -876,10 +1003,13 @@ function submitTake(){
   var t=takeById(session); if(!t)return;
   var ids=Object.keys(t.lines), missing=[], needPhoto=[], needComment=[];
   var photoRule=setg('photoRule','var'), commentRule=setg('commentRule','on');
+  var manual=(t.mode==='manual');
   ids.forEach(function(k){
     var L=t.lines[k], it=item(k); if(!it)return;
-    if(L.q==null||L.q===''){missing.push(it.name);return}
-    var v=lineVariance(L);
+    /* In list mode a blank line is an item nobody has been to yet. In
+       one-by-one mode a line only exists because somebody counted it. */
+    if(L.q==null||L.q===''){ if(!manual)missing.push(it.name); return }
+    var v=lineVariance(L,k);
     if(photoRule==='all'&&!L.photo&&!L.hadPhoto)needPhoto.push(it.name);
     if(photoRule==='var'&&v&&v.vq!==0&&!L.photo&&!L.hadPhoto)needPhoto.push(it.name);
     if(commentRule==='on'&&v&&varianceStatus(v.vq,L.sys,v.vv)==='review'&&!L.vcom)needComment.push(it.name);
@@ -892,6 +1022,10 @@ function submitTake(){
   if(needComment.length)problems.push({t:needComment.length+' need a comment',
     d:'The variance is above the review threshold.',list:needComment});
 
+  if(manual&&!ids.length){
+    toast('Nothing counted yet. Add an item first.',3500);
+    return;
+  }
   if(problems.length){
     sheet('<div class="sheet"><div class="sheet-head"><h3>Not ready to submit</h3>'+
       '<div class="who">'+esc(t.ref)+'</div></div><div class="sheet-body">'+
@@ -905,7 +1039,7 @@ function submitTake(){
     return;
   }
   var varQty=0,varVal=0,varN=0;
-  ids.forEach(function(k){var v=lineVariance(t.lines[k]); if(v){varQty+=v.vq;varVal+=v.vv;if(v.vq!==0)varN++}});
+  ids.forEach(function(k){var v=lineVariance(t.lines[k],k); if(v){varQty+=v.vq;varVal+=v.vv;if(v.vq!==0)varN++}});
   t.status='submitted'; t.submittedAt=new Date().toISOString(); t.submittedBy=role;
   t.varQty=n3(varQty); t.varValue=n2(varVal); t.varLines=varN;
   logIt('Stock take submitted',t.ref+' - '+varN+' variances - '+money(varVal));
@@ -916,10 +1050,13 @@ function approveTake(){
   var t=takeById(session); if(!t||!canManage())return;
   var moves=0;
   Object.keys(t.lines).forEach(function(k){
-    var L=t.lines[k], v=lineVariance(L);
-    if(!v||v.vq===0)return;
-    S.moves.push({id:uid('m'),at:new Date().toISOString(),i:k,l:t.loc,q:v.vq,
-      c:Number(L.cost||0),k2:'count',src:t.ref,by:role});
+    var L=t.lines[k], v=lineVariance(L,k);
+    if(!v||(v.vq===0&&!v.opening))return;
+    var opening=!!v.opening;
+    S.moves.push({id:uid('m'),at:new Date().toISOString(),i:k,l:t.loc,
+      q: opening ? n3(Number(L.q)) : v.vq,
+      c: Number(L.cost||0), k2: opening?'opening':'count', src:t.ref, by:role,
+      byName: L.byName||''});
     moves++;
   });
   _stockRev=-1;
@@ -1204,11 +1341,11 @@ async function saveState(msg,quiet){
 }
 
 /* ------------------------------- tabs ------------------------------- */
-var TABS=['dash','stock','count','items','settings','audit'];
+var TABS=['count','stock','items','settings','audit','dash'];
 function selectTab(id){
   tab=id.replace('tab-','');
-  if((tab==='items'||tab==='settings'||tab==='audit')&&!canManage())tab='dash';
-  if(tab==='count'&&!canCount())tab='dash';
+  if((tab==='items'||tab==='settings'||tab==='audit')&&!canManage())tab='stock';
+  if(tab==='count'&&!canCount())tab='stock';
   TABS.forEach(function(t){
     var b=$('tab-'+t), p=$('panel-'+t);
     if(!b||!p)return;
@@ -1240,8 +1377,16 @@ function wire(){
   $('stPrint').onclick=function(){window.print()};
 
   $('ctLoc').onchange=checkDuplicate; $('ctDate').onchange=checkDuplicate;
+  modeHint();
   $('ctStart').onclick=startTake;
   $('runClose').onclick=function(){ clearTimeout(saveTimer); saveState(null,true); hideRun() };
+  $('runAdd').onclick=addCountSheet;
+  $('ctMode').onclick=function(ev){
+    var b=ev.target.closest('[data-mode]'); if(!b)return;
+    Array.prototype.forEach.call(this.querySelectorAll('.chip'),function(c){
+      c.setAttribute('aria-pressed',c===b?'true':'false')});
+    modeHint();
+  };
   $('runSearch').oninput=renderRun; $('runShow').onchange=renderRun;
 
   $('imAdd').onclick=function(){itemSheet(null)};
@@ -1262,6 +1407,14 @@ function wire(){
     var f=this.files&&this.files[0]; this.value='';
     if(!f||!photoFor)return;
     var id=photoFor; photoFor=null;
+    if(id==='__add'){
+      toast('Shrinking the picture…',1200);
+      shrink(f,function(dataUrl,err){
+        if(err){toast(err,4000);return}
+        if(window.__acPhoto)window.__acPhoto(dataUrl);
+      });
+      return;
+    }
     toast('Shrinking the picture…',1500);
     shrink(f,function(dataUrl,err){
       if(err){toast(err,4000);return}
@@ -1330,9 +1483,16 @@ function wire(){
     if(q){setQty(q.getAttribute('data-qty'),q.value===''?null:q.value)}
   });
 }
+function modeHint(){
+  var m=countMode();
+  $('ctCatWrap').hidden=(m!=='list');
+  $('ctModeHint').textContent = m==='manual'
+    ? 'Add each item as you count it, with a photo. Nothing needs to be set up first.'
+    : 'Every active item becomes a line to fill in. Best once the item master is complete.';
+}
 function noteSheet(id){
   var t=takeById(session), L=t&&t.lines[id], it=item(id); if(!L||!it)return;
-  var v=lineVariance(L), needs=v&&v.vq!==0&&varianceStatus(v.vq,L.sys,v.vv)==='review';
+  var v=lineVariance(L,id), needs=v&&v.vq!==0&&varianceStatus(v.vq,L.sys,v.vv)==='review';
   sheet('<div class="sheet"><div class="sheet-head"><h3>'+esc(it.name)+'</h3>'+
     '<div class="who">'+(v?'Counted '+L.q+' against a book figure of '+n3(L.sys):'Not counted yet')+'</div></div>'+
     '<div class="sheet-body">'+
@@ -1360,7 +1520,7 @@ function boot(){
   wire();
   $('ctDate').value=todayISO();
   refreshMode();
-  var t0='dash'; try{t0=sessionStorage.getItem('sv-i-tab')||'dash'}catch(e){}
+  var t0='count'; try{t0=sessionStorage.getItem('sv-i-tab')||'count'}catch(e){}
   selectTab('tab-'+t0);
 
   var reach=(window.claude&&typeof claude.use==='function')?claude.use('artifact'):Promise.resolve(null);
