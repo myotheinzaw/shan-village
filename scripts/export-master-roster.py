@@ -166,6 +166,9 @@ def main():
     ap.add_argument("--state", required=True)
     ap.add_argument("--history", default="data/roster-history.json")
     ap.add_argument("--out", default="Shan Village - Master Roster.xlsx")
+    ap.add_argument("--recent", type=int, default=0,
+                    help="weekly grid covers only the most recent N weeks "
+                         "(monthly totals still cover every month)")
     ap.add_argument("--compact", action="store_true",
                     help="leave out the per-day Shift detail sheet (much smaller file)")
     ap.add_argument("--generated-at", default=None,
@@ -362,7 +365,21 @@ def main():
         ws.column_dimensions[get_column_letter(i)].width = 19
     ws.column_dimensions["J"].width = 10
     row = 1
-    for start in reversed(week_starts):
+    grid_weeks = list(reversed(week_starts))
+    if args.recent and args.recent > 0:
+        dropped = grid_weeks[args.recent:]
+        grid_weeks = grid_weeks[:args.recent]
+        if dropped:
+            # Say what is not here. A grid that quietly stops at eight weeks
+            # reads as "that is all there ever was".
+            c = ws.cell(row=row, column=1,
+                        value="Weekly grid shows the most recent %d weeks. "
+                              "%d earlier weeks (from %s) are in the full export and "
+                              "are still counted in Monthly overtime."
+                              % (len(grid_weeks), len(dropped), min(dropped)))
+            c.font = Font(italic=True, color="756B58")
+            row += 2
+    for start in grid_weeks:
         dates = [day_date(start, i) for i in range(7)]
         c = ws.cell(row=row, column=1,
                     value="Week %s to %s" % (dates[0].strftime("%d %b %Y"),

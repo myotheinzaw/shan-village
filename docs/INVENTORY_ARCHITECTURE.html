@@ -1,0 +1,659 @@
+<title>Shan Village Inventory Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+--bg:#FAF5EA;--surface:#FFFFFF;--surface-sunken:#F3ECDC;--border:#E3D7BE;--border-strong:#D2C2A2;
+--text:#241C15;--text-muted:#756B58;--text-faint:#9C917A;
+--accent:#C1501F;--accent-strong:#9C2B1F;--accent-soft:#F4DEC7;--gold:#A9781E;
+--good:#2F7D4F;--good-soft:#E1F0E4;--warn:#A9781E;--warn-soft:#F6ECD3;
+--critical:#9C2B1F;--critical-soft:#F7E1DA;
+--header-bg:#171310;--header-text:#F7EFDD;--header-sub:#C9BB9C;--header-accent:#E8C77A;
+--shadow:0 1px 2px rgba(36,28,21,.06),0 8px 24px -12px rgba(36,28,21,.18);--radius:10px;
+--font-display:'Fraunces',Georgia,serif;--font-body:'IBM Plex Sans','Segoe UI',Arial,sans-serif;
+--font-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#1C1712;--surface:#26201A;--surface-sunken:#221D17;--border:#40372A;--border-strong:#544732;
+--text:#F2EBDC;--text-muted:#C3B79E;--text-faint:#8F8368;
+--accent:#E38A46;--accent-strong:#E0654A;--accent-soft:#43291A;--gold:#D9B159;
+--good:#6FBF8B;--good-soft:#1E2E22;--warn:#D9B159;--warn-soft:#332A15;
+--critical:#E0654A;--critical-soft:#3A1F1A;
+--header-bg:#15110C;--header-text:#F2EBDC;--header-sub:#B8AC93;--header-accent:#D9B159;
+--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);}}
+:root[data-theme="dark"]{
+--bg:#1C1712;--surface:#26201A;--surface-sunken:#221D17;--border:#40372A;--border-strong:#544732;
+--text:#F2EBDC;--text-muted:#C3B79E;--text-faint:#8F8368;
+--accent:#E38A46;--accent-strong:#E0654A;--accent-soft:#43291A;--gold:#D9B159;
+--good:#6FBF8B;--good-soft:#1E2E22;--warn:#D9B159;--warn-soft:#332A15;
+--critical:#E0654A;--critical-soft:#3A1F1A;
+--header-bg:#15110C;--header-text:#F2EBDC;--header-sub:#B8AC93;--header-accent:#D9B159;
+--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:600;margin:0;text-wrap:balance}
+a{color:var(--accent)}
+code,.mono{font-family:var(--font-mono);font-size:.9em}
+:where(a,button,summary,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+header.top{background:var(--header-bg);color:var(--header-text);padding:34px 26px 30px;border-bottom:3px solid var(--accent)}
+header.top .in{max-width:900px;margin:0 auto}
+header.top .eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--header-accent);font-weight:600}
+header.top h1{font-size:clamp(27px,5vw,40px);color:var(--header-text);margin-top:9px;line-height:1.12}
+header.top p{color:var(--header-sub);margin:12px 0 0;max-width:60ch;font-size:15px}
+
+main{max-width:900px;margin:0 auto;padding:34px 22px 90px}
+section{margin-bottom:44px;scroll-margin-top:16px}
+h2{font-size:23px;margin-bottom:6px;display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+h2 .tag{font-family:var(--font-mono);font-size:13px;color:var(--accent);background:var(--accent-soft);
+  border-radius:5px;padding:2px 8px;font-weight:600;flex-shrink:0}
+h3{font-size:17px;margin:24px 0 7px}
+h4{font-size:14.5px;margin:16px 0 4px;font-family:var(--font-body);font-weight:700}
+p{margin:9px 0}
+.lede{color:var(--text-muted);font-size:15px;margin-bottom:14px}
+ul,ol{margin:9px 0;padding-left:22px}li{margin:5px 0}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:17px 19px;box-shadow:var(--shadow);margin:15px 0}
+.card h3:first-child,.card h4:first-child{margin-top:0}
+.verdict{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 var(--radius) var(--radius) 0;
+  padding:15px 19px;margin:16px 0}
+.verdict strong{color:var(--accent-strong)}
+.warn{border-left:4px solid var(--critical);background:var(--critical-soft);border-radius:0 var(--radius) var(--radius) 0;
+  padding:15px 19px;margin:16px 0}
+.ok{border-left:4px solid var(--good);background:var(--good-soft);border-radius:0 var(--radius) var(--radius) 0;
+  padding:15px 19px;margin:16px 0}
+
+.wrap{overflow-x:auto;margin:14px 0;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th{background:var(--surface-sunken);text-align:left;padding:9px 12px;font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text-muted);font-weight:700;white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.mono,th.mono{font-family:var(--font-mono);font-size:12.5px;white-space:nowrap}
+
+pre{background:var(--header-bg);color:#F2EBDC;border-radius:var(--radius);padding:15px 17px;overflow-x:auto;
+  font-family:var(--font-mono);font-size:12.5px;line-height:1.6;margin:14px 0}
+pre .c{color:#9C917A}
+pre .k{color:#E8C77A}
+
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700;
+  letter-spacing:.03em;border:1px solid}
+.pill.now{background:var(--good-soft);border-color:var(--good);color:var(--good)}
+.pill.next{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.pill.later{background:var(--surface-sunken);border-color:var(--border-strong);color:var(--text-muted)}
+.pill.you{background:var(--critical-soft);border-color:var(--critical);color:var(--critical)}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0}
+.flow{width:100%;height:auto;display:block;margin:6px 0}
+nav.toc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 19px;margin-bottom:34px}
+nav.toc h2{font-size:15px;margin:0 0 8px}
+nav.toc ol{columns:2;column-gap:26px;margin:0;padding-left:19px;font-size:14px}
+@media (max-width:560px){nav.toc ol{columns:1}}
+nav.toc a{text-decoration:none}nav.toc a:hover{text-decoration:underline}
+footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color:var(--text-faint);font-size:13px}
+</style>
+<header class="top"><div class="in">
+  <div class="eyebrow">Shan Village Operations &middot; Module 2</div>
+  <h1>Inventory Control &amp; Stock Take</h1>
+  <p>Architecture, schema and Phase&nbsp;1 plan &mdash; answering points A to J before any code is written.
+     Read section&nbsp;J first if you read only one: it decides everything else.</p>
+</div></header>
+
+<main>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#j">Where Artifacts stop working</a></li>
+    <li><a href="#a">Proposed architecture</a></li>
+    <li><a href="#b">Database schema</a></li>
+    <li><a href="#c">Google Drive integration</a></li>
+    <li><a href="#d">Drive folder structure</a></li>
+    <li><a href="#e">Roles and permissions</a></li>
+    <li><a href="#f">Inventory workflow</a></li>
+    <li><a href="#g">Excel master structure</a></li>
+    <li><a href="#h">Phase 1 plan</a></li>
+    <li><a href="#i">What I need from you</a></li>
+  </ol>
+</nav>
+
+<!-- ============================ J ============================ -->
+<section id="j">
+  <h2><span class="tag">J</span> Where Artifacts stop working</h2>
+  <p class="lede">You asked what limitation forces a backend. This is not a theoretical answer &mdash; I hit
+    the wall today, twice, while doing your ordinary daily export.</p>
+
+  <div class="warn">
+    <p style="margin-top:0"><strong>Today's evidence.</strong> The nightly job built your roster
+      workbook (13&ndash;24&nbsp;KB) and had to move it into Drive. A file can only reach Drive by passing
+      through this conversation as base64 text. The wastage report &mdash; 7&nbsp;KB &mdash; went through cleanly.
+      The roster workbook did not: both attempts corrupted in transit. The wastage report for
+      25&nbsp;August is in your Drive folder. The roster snapshot for 25&nbsp;August is not.</p>
+    <p style="margin-bottom:0">That is a hard ceiling of roughly <strong>8&nbsp;KB per file</strong>, per day,
+      for a single-writer page. Inventory across three locations with photo evidence is an order of
+      magnitude past it.</p>
+  </div>
+
+  <h3>The five specific limits</h3>
+  <div class="wrap"><table>
+    <thead><tr><th>Limit</th><th>What it means for inventory</th></tr></thead>
+    <tbody>
+      <tr><td><strong>No server, no secrets</strong></td>
+          <td>An Artifact is one HTML file in the viewer's browser. There is nowhere to put a Google
+              service-account key. Anything you embed is readable by anyone with the link &mdash; which is
+              exactly what your point 36 forbids.</td></tr>
+      <tr><td><strong>Every save rewrites the whole page</strong></td>
+          <td>A stock take that adds one line republishes the entire document. Two counters in the
+              Kitchen and the Store pressing save in the same second is a race: one wins, one is
+              rejected. The wastage page survives this because entries are occasional. A month-end
+              count across three locations is a sustained multi-writer workload.</td></tr>
+      <tr><td><strong>Photos live inside the page</strong></td>
+          <td>The page has a 16&nbsp;MB ceiling and every photo is carried in every save. A 125-item
+              count with evidence photos exceeds that in one session, and each save gets slower as the
+              count proceeds.</td></tr>
+      <tr><td><strong>No network access</strong></td>
+          <td>The page cannot call the Drive API, a database, or anything else. Its only outbound
+              action is saving a new copy of itself.</td></tr>
+      <tr><td><strong>No real identity</strong></td>
+          <td>A shared lock code is not a user. "Counted by" and "Approved by" would be self-declared
+              text. An audit trail you cannot trust is worse than none, because it looks authoritative.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="verdict">
+    <p style="margin:0"><strong>Verdict.</strong> The roster and wastage pages are the right tool for what
+      they do: one person editing, small data, no photos of consequence. Inventory is not that shape.
+      Building it as an Artifact would mean faking the parts you explicitly said not to fake &mdash;
+      the Drive writes, the Excel sync, the audit trail. <strong>Inventory belongs in the web application
+      already sitting in your repository</strong>, which was built for exactly this and already contains a
+      disabled <code>inventory</code> module and four inventory permissions waiting to be switched on.</p>
+  </div>
+</section>
+
+<!-- ============================ A ============================ -->
+<section id="a">
+  <h2><span class="tag">A</span> Proposed architecture</h2>
+  <p class="lede">Nothing new is invented here. The roster application already has the shape; inventory
+    becomes a second module inside it.</p>
+
+  <svg class="flow" viewBox="0 0 760 300" role="img" aria-labelledby="flowt">
+    <title id="flowt">Phones and desktops reach the Next.js app on Vercel; it reads and writes Postgres on
+      Supabase, and a server-side job writes photos and Excel files into Google Drive.</title>
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+      </marker>
+    </defs>
+    <g font-family="IBM Plex Sans, sans-serif" font-size="12.5" color="currentColor">
+      <g fill="none" stroke="currentColor" stroke-width="1.4" opacity=".55" marker-end="url(#ar)">
+        <path d="M140 62 H300"/><path d="M140 128 H300"/><path d="M140 194 H300"/>
+        <path d="M470 128 H560"/>
+        <path d="M385 175 V232 H560"/>
+      </g>
+      <g>
+        <rect x="14" y="38" width="126" height="46" rx="9" fill="var(--surface-sunken)" stroke="var(--border-strong)"/>
+        <text x="77" y="58" text-anchor="middle" font-weight="600">Stock taker</text>
+        <text x="77" y="74" text-anchor="middle" fill="var(--text-muted)" font-size="11">phone + camera</text>
+
+        <rect x="14" y="104" width="126" height="46" rx="9" fill="var(--surface-sunken)" stroke="var(--border-strong)"/>
+        <text x="77" y="124" text-anchor="middle" font-weight="600">Supervisor</text>
+        <text x="77" y="140" text-anchor="middle" fill="var(--text-muted)" font-size="11">tablet</text>
+
+        <rect x="14" y="170" width="126" height="46" rx="9" fill="var(--surface-sunken)" stroke="var(--border-strong)"/>
+        <text x="77" y="190" text-anchor="middle" font-weight="600">Office</text>
+        <text x="77" y="206" text-anchor="middle" fill="var(--text-muted)" font-size="11">desktop</text>
+
+        <rect x="300" y="46" width="170" height="130" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+        <text x="385" y="72" text-anchor="middle" font-weight="700" fill="var(--accent-strong)">Shan Village app</text>
+        <text x="385" y="92" text-anchor="middle" font-size="11" fill="var(--text-muted)">Next.js on Vercel</text>
+        <text x="385" y="112" text-anchor="middle" font-size="11" fill="var(--text-muted)">roster &middot; inventory</text>
+        <text x="385" y="132" text-anchor="middle" font-size="11" fill="var(--text-muted)">one login, one</text>
+        <text x="385" y="148" text-anchor="middle" font-size="11" fill="var(--text-muted)">permission model</text>
+        <text x="385" y="166" text-anchor="middle" font-size="10.5" fill="var(--text-faint)">server routes hold the secrets</text>
+
+        <rect x="560" y="104" width="186" height="52" rx="9" fill="var(--surface)" stroke="var(--border-strong)"/>
+        <text x="653" y="126" text-anchor="middle" font-weight="600">Supabase Postgres</text>
+        <text x="653" y="144" text-anchor="middle" font-size="11" fill="var(--text-muted)">the inventory record</text>
+
+        <rect x="560" y="208" width="186" height="52" rx="9" fill="var(--surface)" stroke="var(--border-strong)"/>
+        <text x="653" y="230" text-anchor="middle" font-weight="600">Google Drive</text>
+        <text x="653" y="248" text-anchor="middle" font-size="11" fill="var(--text-muted)">photos &middot; Excel masters</text>
+
+        <text x="500" y="122" font-size="10.5" fill="var(--text-faint)">SQL + RLS</text>
+        <text x="440" y="226" font-size="10.5" fill="var(--text-faint)">service account</text>
+      </g>
+    </g>
+  </svg>
+
+  <div class="grid2">
+    <div class="card">
+      <h4>What holds the truth</h4>
+      <p style="margin-bottom:0">Postgres. Every count, transfer, receipt and adjustment is a row.
+        Current stock is <em>derived</em> from movements, never typed in &mdash; so it can always be explained.</p>
+    </div>
+    <div class="card">
+      <h4>What Drive holds</h4>
+      <p style="margin-bottom:0">Photographs and generated Excel files. Drive is the document
+        repository and the thing you open on a laptop. It is never the database.</p>
+    </div>
+    <div class="card">
+      <h4>Where the secrets live</h4>
+      <p style="margin-bottom:0">Only in Vercel's server environment. The browser never sees the
+        service-account key, and never talks to Drive directly.</p>
+    </div>
+    <div class="card">
+      <h4>Who you log in as</h4>
+      <p style="margin-bottom:0">The same Supabase account as the duty roster. One person, one login,
+        both modules &mdash; as you asked in point 21.</p>
+    </div>
+  </div>
+
+  <h3>Why not Google Sheets as the live source</h3>
+  <p>You offered it as a fallback. I would not take it. A sheet has no row-level security, no
+    transactions and no foreign keys &mdash; three counters editing at once will corrupt each other, and
+    nothing stops a stock taker reading the cost of every item. Postgres gives all three, and the
+    Excel file is generated <em>from</em> it, which is what you actually want: the spreadsheet as an
+    output, not as the system of record.</p>
+</section>
+<!-- ============================ B ============================ -->
+<section id="b">
+  <h2><span class="tag">B</span> Database schema</h2>
+  <p class="lede">New tables only. Everything else &mdash; profiles, roles, permissions, outlets, audit_logs,
+    app_settings, import_batches &mdash; already exists and is reused.</p>
+
+  <h3>Locations</h3>
+  <p>Your three locations are stock locations, not restaurant outlets, so they get their own table
+    rather than being forced into <code>outlets</code>. A location can later belong to an outlet.</p>
+<pre><span class="c">-- Al Ghurair Kitchen &middot; Al Ghurair Store &middot; Al Quoz Home</span>
+<span class="k">create table</span> inv_locations (
+  id uuid primary key, code text unique, name text,
+  kind text,                    <span class="c">-- kitchen | store | home</span>
+  outlet_id uuid null <span class="k">references</span> outlets(id),
+  is_active boolean default true, sort_order int
+);</pre>
+
+  <h3>Item master</h3>
+<pre><span class="k">create table</span> inv_categories (id uuid pk, name text, parent_id uuid null, sort_order int);
+<span class="c">-- self-referencing: category and subcategory in one table, admin-editable</span>
+
+<span class="k">create table</span> inv_items (
+  id uuid pk,
+  sku text unique,              <span class="c">-- your Item ID</span>
+  name text not null,
+  category_id uuid, brand text, supplier_id uuid null,
+  purchase_unit text,           <span class="c">-- how you buy it     e.g. case</span>
+  count_unit text,              <span class="c">-- how you count it   e.g. bottle</span>
+  conversion_factor numeric,    <span class="c">-- 1 case = 12 bottles</span>
+  unit_cost numeric,            <span class="c">-- current cost, per count_unit</span>
+  min_level numeric, reorder_level numeric, max_level numeric,
+  default_location_id uuid null,
+  photo_required text,          <span class="c">-- inherit | always | never</span>
+  is_active boolean default true, notes text,
+  created_by uuid, created_at timestamptz
+);
+
+<span class="c">-- Levels can differ per location: the Kitchen reorders chicken sooner than the Store.</span>
+<span class="k">create table</span> inv_item_levels (
+  item_id uuid, location_id uuid,
+  min_level numeric, reorder_level numeric, max_level numeric,
+  primary key (item_id, location_id)
+);</pre>
+
+  <h3>Movements &mdash; the heart of it</h3>
+  <div class="ok">
+    <p style="margin:0"><strong>One ledger, every reason.</strong> Receipts, transfers, usage, wastage,
+      adjustments and count corrections are all rows in <code>inv_movements</code>. Current stock is
+      the sum. This is what makes point&nbsp;7 (opening &rarr; closing) and point&nbsp;25 (valuation) fall out
+      for free instead of needing separate machinery, and it is why a number can always be traced to
+      the document that caused it.</p>
+  </div>
+<pre><span class="k">create table</span> inv_movements (
+  id uuid pk,
+  item_id uuid, location_id uuid,
+  qty numeric not null,         <span class="c">-- signed: +receipt, &minus;issue</span>
+  unit_cost numeric,            <span class="c">-- cost at the moment it moved</span>
+  kind text not null,           <span class="c">-- opening | receipt | transfer_in | transfer_out</span>
+                                <span class="c">-- usage | wastage | adjustment | count</span>
+  source_table text, source_id uuid,   <span class="c">-- the GRN, transfer or stock take behind it</span>
+  occurred_at timestamptz, created_by uuid, note text
+);
+<span class="k">create index</span> on inv_movements (item_id, location_id, occurred_at);
+
+<span class="c">-- Read model, refreshed on write. Never edited by hand.</span>
+<span class="k">create materialized view</span> inv_current_stock <span class="k">as</span>
+  <span class="k">select</span> item_id, location_id, sum(qty) <span class="k">as</span> qty,
+         sum(qty * unit_cost) <span class="k">as</span> value
+  <span class="k">from</span> inv_movements <span class="k">group by</span> 1, 2;</pre>
+
+  <h3>Stock takes</h3>
+<pre><span class="k">create table</span> inv_stock_takes (
+  id uuid pk,
+  ref text unique,              <span class="c">-- ST-20260825-001</span>
+  location_id uuid, take_date date,
+  status text,                  <span class="c">-- draft | in_progress | submitted | reviewed</span>
+                                <span class="c">-- | approved | locked</span>
+  started_at timestamptz, completed_at timestamptz,
+  counted_by uuid, reviewed_by uuid, approved_by uuid,
+  is_month_end boolean default false,
+  total_items int, counted_items int,
+  value_counted numeric, variance_qty numeric, variance_value numeric,
+  comment text, reopen_reason text
+);
+<span class="k">create unique index</span> on inv_stock_takes (location_id, take_date)
+  <span class="k">where</span> status &lt;&gt; 'cancelled';   <span class="c">-- point 30: one count per location per day</span>
+
+<span class="k">create table</span> inv_stock_take_lines (
+  id uuid pk, stock_take_id uuid, item_id uuid,
+  counted_qty numeric <span class="k">null</span>,       <span class="c">-- NULL = not counted, 0 = confirmed empty</span>
+  count_unit text, system_qty numeric,   <span class="c">-- frozen when the count starts</span>
+  unit_cost numeric,
+  variance_qty numeric <span class="k">generated</span>, variance_value numeric <span class="k">generated</span>,
+  status text,                  <span class="c">-- matched | minor | shortage | excess | review</span>
+  note text, variance_comment text,
+  counted_by uuid, counted_at timestamptz
+);</pre>
+  <p><strong>Point 29 is a nullable column, not a convention.</strong> <code>counted_qty</code> is
+    <code>NULL</code> until somebody counts, and <code>0</code> only when they confirm the shelf is
+    empty. The database enforces the difference, so no later query can blur it.</p>
+
+  <h3>Transactions, photos, audit</h3>
+<pre><span class="k">create table</span> inv_transfers (id uuid pk, ref text, <span class="c">-- TRF-20260825-001</span>
+  from_location_id uuid, to_location_id uuid, status text,
+  requested_by uuid, issued_by uuid, received_by uuid,
+  requested_at, dispatched_at, received_at timestamptz, note text);
+<span class="k">create table</span> inv_transfer_lines (transfer_id uuid, item_id uuid, qty numeric, unit text);
+
+<span class="k">create table</span> inv_receipts (id uuid pk, ref text, <span class="c">-- GRN-20260825-001</span>
+  supplier_id uuid, invoice_no text, received_at timestamptz,
+  location_id uuid, received_by uuid, total numeric);
+<span class="k">create table</span> inv_receipt_lines (receipt_id uuid, item_id uuid, qty numeric,
+  unit text, unit_price numeric);
+
+<span class="k">create table</span> inv_wastage (id uuid pk, location_id uuid, item_id uuid,
+  qty numeric, unit text, unit_cost numeric, reason text,
+  entered_by uuid, approved_by uuid, occurred_at timestamptz, note text);
+
+<span class="c">-- Photos are rows, so any record can carry any number of them.</span>
+<span class="k">create table</span> inv_photos (
+  id uuid pk,
+  subject_table text, subject_id uuid,   <span class="c">-- line, transfer, receipt, wastage</span>
+  drive_file_id text, drive_url text, filename text,
+  width int, height int, bytes int,
+  taken_by uuid, taken_at timestamptz,
+  upload_status text                     <span class="c">-- pending | uploaded | failed</span>
+);
+
+<span class="k">create table</span> inv_settings (key text pk, value jsonb);
+  <span class="c">-- variance tolerances, photo rules, valuation method, currency</span></pre>
+  <p>The audit trail is not a new table: the platform's existing <code>audit_logs</code> already records
+    actor, action, before, after, timestamp and reason, and inventory writes to it like every other
+    module. Point&nbsp;19 is satisfied by reuse, and the Audit Log page you already have gains an
+    inventory filter.</p>
+</section>
+
+<!-- ============================ C ============================ -->
+<section id="c">
+  <h2><span class="tag">C</span> Google Drive integration</h2>
+  <p class="lede">You are right that a shared folder URL grants nothing. Here is what actually
+    authorises the write.</p>
+
+  <h3>Method: a Google service account</h3>
+  <ol>
+    <li>Create a Google Cloud project and enable the <strong>Google Drive API</strong>.</li>
+    <li>Create a <strong>service account</strong>. Google issues an email such as
+      <code class="mono">shan-village-inventory@&hellip;.iam.gserviceaccount.com</code> and a JSON key.</li>
+    <li><strong>Share your Drive folder with that email address</strong>, as Editor. This is the step
+      that grants permission &mdash; the folder itself does the granting, so you can revoke it at any time
+      from Drive without touching the application.</li>
+    <li>The JSON key goes into Vercel's environment variables. It is never sent to a browser, never
+      committed to the repository, and never appears in the page source.</li>
+  </ol>
+
+  <div class="grid2">
+    <div class="card"><h4>Why not OAuth</h4>
+      <p style="margin-bottom:0">OAuth uploads as <em>a person</em> and needs that person to re-consent
+        periodically. A month-end job must run at 8pm whether or not anyone is logged in.</p></div>
+    <div class="card"><h4>Why not Apps Script</h4>
+      <p style="margin-bottom:0">Workable, but it puts half the logic in a second place with its own
+        editor, quotas and deployment. One backend is easier to keep correct.</p></div>
+  </div>
+
+  <h3>How a photo actually travels</h3>
+  <ol>
+    <li>The phone captures it and <strong>shrinks it in the browser</strong> &mdash; the same technique already
+      proven in your wastage page, which turned 586&nbsp;KB into 54&nbsp;KB while staying readable.</li>
+    <li>It is sent to the app's own server route, not to Google.</li>
+    <li>The server uploads it to Drive with the service account, creating the year, month, location and
+      date folders if they are missing.</li>
+    <li>The returned Drive file id and URL are written to <code>inv_photos</code> against the count line.</li>
+    <li>If the upload fails the row stays <code>pending</code> and a retry job picks it up. The count is
+      never blocked by a photo, and a photo is never silently lost.</li>
+  </ol>
+</section>
+
+<!-- ============================ D ============================ -->
+<section id="d">
+  <h2><span class="tag">D</span> Drive folder structure</h2>
+<pre>Shan Village Inventory/
+&#9500;&#9472;&#9472; Stock Take Photos/
+&#9474;   &#9492;&#9472;&#9472; 2026/ 08 August/ Al Ghurair Kitchen/ 2026-08-25/
+&#9474;       &#9500;&#9472;&#9472; 20260825_AlGhurairKitchen_CookingOil_001.jpg
+&#9474;       &#9492;&#9472;&#9472; 20260825_AlGhurairKitchen_CookingOil_002.jpg
+&#9500;&#9472;&#9472; Wastage Photos/      2026/ 08 August/ &lt;location&gt;/ &lt;date&gt;/
+&#9500;&#9472;&#9472; Invoices/            2026/ 08 August/ &lt;supplier&gt;/
+&#9492;&#9472;&#9472; Reports/
+    &#9500;&#9472;&#9472; Shan_Village_Inventory_Master.xlsx      <span class="c">&larr; replaced each time</span>
+    &#9500;&#9472;&#9472; Archive/
+    &#9474;   &#9492;&#9472;&#9472; Shan_Village_Inventory_Master_2026-08-25.xlsx
+    &#9492;&#9472;&#9472; Month End/
+        &#9492;&#9472;&#9472; Inventory_Closing_August_2026.xlsx</pre>
+  <p>Folders are created on demand by the server, so nothing has to be set up by hand.
+    <strong>Archive files are never overwritten</strong> &mdash; a snapshot that already exists is left alone and
+    the run says so rather than replacing it.</p>
+</section>
+<!-- ============================ E ============================ -->
+<section id="e">
+  <h2><span class="tag">E</span> Roles and permissions</h2>
+  <p class="lede">The platform already has roles, permissions, per-user overrides and a
+    <code>modules</code> table. Inventory adds permission keys; it does not add a second access system.</p>
+
+  <div class="ok"><p style="margin:0">Your repository already carries an <code>inventory</code> module row
+    marked "Not yet available" and four permissions &mdash; <code>inventory.view</code>,
+    <code>inventory.count</code>, <code>inventory.adjust</code>, <code>inventory.value_view</code> &mdash; seeded
+    <em>inactive</em>. That was deliberate groundwork for this module. Phase 1 activates them and adds
+    the rest.</p></div>
+
+  <div class="wrap"><table>
+    <thead><tr><th>Role</th><th>Can do</th><th class="mono">Key permissions</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Owner / Admin</strong></td><td>Everything, including reopening a locked count and
+          changing costs</td><td class="mono">all</td></tr>
+      <tr><td><strong>Inventory Admin</strong></td><td>Item master, receipts, transfers, counts, approval,
+          all reports</td><td class="mono">inventory.* except reopen</td></tr>
+      <tr><td><strong>Location Supervisor</strong></td><td>Counts and operations for their own locations;
+          reviews variance</td><td class="mono">count, review, transfer.request</td></tr>
+      <tr><td><strong>Stock Taker</strong></td><td>Enter counts and photos. No costs, no approval</td>
+          <td class="mono">count only</td></tr>
+      <tr><td><strong>View Only</strong></td><td>Read what they are entitled to see</td>
+          <td class="mono">view</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Two things worth deciding deliberately</h3>
+  <p><strong>Cost visibility is its own permission.</strong> <code>inventory.value_view</code> is separate
+    from <code>inventory.view</code>, so a stock taker counts 8 bottles without seeing that they are worth
+    AED 340. The existing schema already flags it as sensitive.</p>
+  <p><strong>Supervisors are scoped to locations.</strong> A new <code>inv_user_locations</code> table
+    assigns people to locations, and row-level security enforces it in the database &mdash; not merely by
+    hiding menus. This is the same principle the roster module was built on: the wall is in Postgres,
+    the menu is only a convenience.</p>
+</section>
+
+<!-- ============================ F ============================ -->
+<section id="f">
+  <h2><span class="tag">F</span> Inventory workflow</h2>
+
+  <h3>A stock take, end to end</h3>
+  <ol>
+    <li><strong>Open</strong> &mdash; supervisor picks location and date. If a count already exists for that
+      pair the system refuses and offers to continue it; only an admin can authorise a second
+      (point&nbsp;30).</li>
+    <li><strong>Freeze</strong> &mdash; every active item for that location becomes a line, and today's system
+      quantity is copied onto it. The count is judged against the stock as it stood when counting
+      began, so a delivery arriving mid-count cannot create a phantom variance.</li>
+    <li><strong>Count</strong> &mdash; on a phone: search or scroll, tap &minus;/+ or type, add a photo, next
+      item. A progress bar reads <em>42 / 125 counted</em>. Everything is saved as you go.</li>
+    <li><strong>Submit</strong> &mdash; the system blocks submission if a rule you configured is unmet: a photo
+      missing on a high-value item, or a comment missing where variance exceeds tolerance
+      (point&nbsp;28).</li>
+    <li><strong>Review</strong> &mdash; supervisor sees only the lines that differ, worst first.</li>
+    <li><strong>Approve</strong> &mdash; and only now does anything move: one <code>count</code> movement per
+      varying line, current stock updated, the Excel master regenerated, the approved report filed to
+      Drive, and the record locked.</li>
+    <li><strong>Reopen</strong> &mdash; admin only, requires a written reason, and both the reason and the
+      original figures stay in the audit log. Nothing is ever quietly rewritten.</li>
+  </ol>
+
+  <h3>Variance and status</h3>
+  <p>Physical &minus; system, as quantity and as value. Bands are settings, not code &mdash; my proposed
+    defaults, for you to confirm or change:</p>
+  <div class="wrap"><table>
+    <thead><tr><th>Status</th><th>Default rule</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Matched</strong></td><td>exactly equal</td></tr>
+      <tr><td><strong>Minor variance</strong></td><td>within 2% or 1 count unit, whichever is larger</td></tr>
+      <tr><td><strong>Shortage / Excess</strong></td><td>beyond that, negative or positive</td></tr>
+      <tr><td><strong>Review required</strong></td><td>over 10%, or value beyond a threshold you set</td></tr>
+    </tbody>
+  </table></div>
+  <div class="warn"><p style="margin:0">I have deliberately not invented a monetary threshold, a
+    tolerance percentage that triggers investigation, or a valuation method. Those are Shan Village
+    policy with money attached. They ship as configurable settings with the defaults above, and you
+    set them before go-live.</p></div>
+
+  <h3>Stock status</h3>
+  <p>Recomputed on every movement: <strong>Out of stock</strong> (0) &middot; <strong>Critical</strong> (at or
+    below minimum) &middot; <strong>Low</strong> (at or below reorder) &middot; <strong>Healthy</strong> &middot;
+    <strong>Overstock</strong> (above maximum). The <em>Attention Required</em> screen lists only the
+    first three.</p>
+</section>
+
+<!-- ============================ G ============================ -->
+<section id="g">
+  <h2><span class="tag">G</span> Excel master structure</h2>
+  <p class="lede"><code>Shan_Village_Inventory_Master.xlsx</code> &mdash; twelve sheets, generated server-side,
+    proper headers, real dates and numbers rather than text.</p>
+  <div class="wrap"><table>
+    <thead><tr><th>#</th><th>Sheet</th><th>Grain &mdash; one row per&#8230;</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1</td><td>Item Master</td><td>item</td></tr>
+      <tr><td class="mono">2</td><td>Current Stock</td><td>item &times; location, with value</td></tr>
+      <tr><td class="mono">3</td><td>Stock by Location</td><td>item, with Kitchen / Store / Al Quoz / Total across</td></tr>
+      <tr><td class="mono">4</td><td>Stock Take History</td><td>stock take session</td></tr>
+      <tr><td class="mono">5</td><td>Stock Take Details</td><td>counted line</td></tr>
+      <tr><td class="mono">6</td><td>Variance Report</td><td>line where physical &ne; system</td></tr>
+      <tr><td class="mono">7</td><td>Purchases / GRN</td><td>receipt line</td></tr>
+      <tr><td class="mono">8</td><td>Transfers</td><td>transfer line, with both confirmations</td></tr>
+      <tr><td class="mono">9</td><td>Wastage</td><td>wastage entry</td></tr>
+      <tr><td class="mono">10</td><td>Adjustments</td><td>manual adjustment, with reason</td></tr>
+      <tr><td class="mono">11</td><td>Photo References</td><td>photo, with its Drive link and what it belongs to</td></tr>
+      <tr><td class="mono">12</td><td>Audit Log</td><td>action, with before and after</td></tr>
+    </tbody>
+  </table></div>
+  <p>Sheet 3 is the consolidated view from your point 2 &mdash; Kitchen + Store + Al Quoz = Total, one row
+    per item, filterable by location.</p>
+</section>
+
+<!-- ============================ H ============================ -->
+<section id="h">
+  <h2><span class="tag">H</span> Phase 1 plan</h2>
+  <p class="lede">Your fifteen Phase 1 items, sequenced so each step is testable before the next
+    depends on it. <span class="pill now">me</span> <span class="pill you">you</span></p>
+
+  <div class="wrap"><table>
+    <thead><tr><th>Step</th><th>Delivers</th><th>Who</th></tr></thead>
+    <tbody>
+      <tr><td><strong>0 &middot; Deploy what exists</strong></td><td>The roster app live on a real address with
+        your Supabase project. Nothing inventory yet &mdash; but it proves login, roles and hosting, and it
+        also ends the artifact re-sharing problem you have been fighting all week.</td>
+        <td><span class="pill you">keys</span> <span class="pill now">build</span></td></tr>
+      <tr><td><strong>1 &middot; Schema + locations</strong></td><td>All <code>inv_*</code> tables, RLS policies,
+        the three locations, permissions switched on. Verified against a real Postgres the same way the
+        roster schema was &mdash; it ships with 117 passing security assertions today.</td><td><span class="pill now">me</span></td></tr>
+      <tr><td><strong>2 &middot; Item master</strong></td><td>Add, edit, deactivate, search, filter, categorise,
+        export. Admin-editable categories.</td><td><span class="pill now">me</span></td></tr>
+      <tr><td><strong>3 &middot; Excel / CSV import</strong></td><td>Upload &rarr; validate &rarr; preview &rarr; fix &rarr; confirm,
+        showing valid rows, invalid rows, duplicates and unknown SKUs. Reuses the roster's existing
+        <code>import_batches</code> machinery.</td><td><span class="pill now">me</span> <span class="pill you">your item list</span></td></tr>
+      <tr><td><strong>4 &middot; Current stock</strong></td><td>Movements ledger, derived stock, three-location
+        consolidated view, valuation, stock status.</td><td><span class="pill now">me</span></td></tr>
+      <tr><td><strong>5 &middot; Mobile stock take</strong></td><td>Location &rarr; date &rarr; count. Big controls,
+        &minus;/+, progress, draft saved locally and synced &mdash; including the weak-signal case in your
+        point 27.</td><td><span class="pill now">me</span></td></tr>
+      <tr><td><strong>6 &middot; Camera + Drive</strong></td><td>Capture, shrink, preview, retake, multiple photos,
+        server upload into the dated folder tree, retry on failure.</td>
+        <td><span class="pill now">me</span> <span class="pill you">service account</span></td></tr>
+      <tr><td><strong>7 &middot; Variance + approval</strong></td><td>Tolerance settings, status bands, the
+        Draft&rarr;Locked workflow, reopen with reason, full audit.</td><td><span class="pill now">me</span></td></tr>
+      <tr><td><strong>8 &middot; Excel master + exports</strong></td><td>The twelve-sheet workbook regenerated on
+        every approval, written to Drive with a dated archive copy, plus the six manual exports.</td>
+        <td><span class="pill now">me</span></td></tr>
+      <tr><td><strong>9 &middot; Dashboard + audit page</strong></td><td>The eight cards and the lists from your
+        point 13; inventory filter on the existing audit log.</td><td><span class="pill now">me</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>Step 0 is not padding.</strong> Everything else assumes a deployed application with real
+    logins. It also happens to solve a problem you have hit five times today: on a real web address
+    there are no versions to re-share, and the link is simply always current.</p>
+
+  <h3>Kept out of Phase 1, by your instruction</h3>
+  <p>Purchases/GRN, transfers, wastage and adjustments have <em>tables and movement kinds</em> in step 1 &mdash;
+    so the data model is complete and nothing has to be migrated later &mdash; but no screens until Phase 2.
+    Recipe costing, barcodes, suppliers, expiry and batch tracking are Phase 3; the schema leaves room
+    for each (<code>inv_items</code> already anticipates suppliers and units; movements already carry
+    cost per event, which is what average-cost and FIFO will need).</p>
+</section>
+
+<!-- ============================ I ============================ -->
+<section id="i">
+  <h2><span class="tag">I</span> What I need from you</h2>
+  <p class="lede">Six things. The first three unblock everything; the rest can follow.</p>
+
+  <div class="wrap"><table>
+    <thead><tr><th>#</th><th>What</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1</td><td><strong>Supabase project</strong></td>
+        <td>Free tier is enough to start. Send the project URL, the anon key and the service-role key.
+          The service-role key goes only into Vercel's server environment.</td></tr>
+      <tr><td class="mono">2</td><td><strong>Vercel account</strong></td>
+        <td>Connect it to the GitHub repository. Free tier is fine.</td></tr>
+      <tr><td class="mono">3</td><td><strong>Google service account</strong></td>
+        <td>Cloud project &rarr; enable Drive API &rarr; create service account &rarr; download the JSON key &rarr;
+          <strong>share your Drive folder with the service account's email as Editor</strong>.</td></tr>
+      <tr><td class="mono">4</td><td><strong>Your item list</strong></td>
+        <td>Whatever exists today &mdash; a spreadsheet, a stock sheet, even photographs of a counting book.
+          I will map it to the import format and tell you exactly what is missing before importing
+          anything.</td></tr>
+      <tr><td class="mono">5</td><td><strong>Policy decisions</strong></td>
+        <td>Variance tolerance, when a photo is mandatory, whether a supervisor may approve their own
+          count, and the valuation method (I suggest starting with current unit cost and adding
+          average cost in Phase 2).</td></tr>
+      <tr><td class="mono">6</td><td><strong>Who is who</strong></td>
+        <td>Names and roles: who counts, who supervises which location, who approves.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="warn"><p style="margin:0"><strong>On sending keys.</strong> Paste them here only if you are
+    comfortable that this conversation holds them. The safer route is to add them yourself in the
+    Supabase, Vercel and Google consoles, and tell me only the project URL and the service-account
+    email address &mdash; I can build and test against placeholders and never see a secret at all. I would
+    recommend that route.</p></div>
+</section>
+
+<footer>
+  Prepared for Shan Village &middot; answers points A&ndash;J of the inventory brief &middot; no code written yet, by design.
+</footer>
+</main>
