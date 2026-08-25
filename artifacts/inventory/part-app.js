@@ -129,11 +129,13 @@ function logIt(action,detail,extra){
 
 /* ---------------------------- access ---------------------------------
    Three codes, the same ones as the roster and the wastage page.
-     owner / admin -> everything, including approving a count, editing
-                      items and costs, and reopening a locked count
-     chef          -> counts stock and enters quantities; no costs shown,
-                      no approval
-     no code       -> reads the dashboard and current stock
+     owner / admin  -> everything, including approving a count, editing
+                       items and costs, and reopening a locked count
+     chef / staff   -> counts stock and enters quantities; no costs shown,
+                       no approval, no item master. The same shared staff
+                       code as the wastage page, so a cook carries one code
+                       for both.
+     no code        -> reads the dashboard and current stock
 
    This is the honest limit of a page with no server: a code is not a
    person, so "counted by" is the code that was used. When this module
@@ -146,7 +148,10 @@ async function codeHash(code,salt){
   return hex(new Uint8Array(d));
 }
 function getLocks(){return S.locks||null}
-function roleName(r){return r==='chef'?'Stock taker':(r==='admin'?'Inventory admin':(r==='owner'?'Owner':''))}
+function roleName(r){
+  return r==='chef'?'Stock taker':(r==='staff'?'Stock taker':
+        (r==='admin'?'Inventory admin':(r==='owner'?'Owner':'')));
+}
 function canCount(){return role!==null}
 function canManage(){return role==='admin'||role==='owner'}
 function canSeeCost(){return canManage()}
@@ -178,7 +183,11 @@ function unlockAs(r){
 function armIdle(){
   clearTimeout(idleTimer);
   if(!canCount())return;
-  idleTimer=setTimeout(function(){ if(canCount()){lockNow(true);toast('Signed out after 20 minutes.',4000)} },1200000);
+  /* A count can take an hour on the shelves; the office locks sooner. */
+  var ms = canManage() ? 1200000 : 28800000;
+  idleTimer=setTimeout(function(){
+    if(canCount()){lockNow(true);toast('Signed out after a while without use.',4000)}
+  },ms);
 }
 ['pointerdown','keydown'].forEach(function(ev){
   document.addEventListener(ev,function(){ if(canCount())armIdle() },{passive:true});
@@ -189,7 +198,7 @@ function closeSheet(){var d=$('sheet');if(d.open)d.close()}
 function askUnlock(){
   if(!cryptoOk()){toast('This browser cannot check the code.',4000);return}
   var d=sheet('<div class="sheet"><div class="sheet-head"><h3>Sign in</h3>'+
-    '<div class="who">Owner, inventory admin or stock taker code.</div></div>'+
+    '<div class="who">Staff code to count stock. Owner or inventory admin code for everything else.</div></div>'+
     '<div class="sheet-body"><div id="lkErr"></div>'+
     '<div><label class="lbl" for="lkCode">Code</label>'+
     '<input class="f pin" id="lkCode" type="password" autocomplete="off"></div>'+
@@ -202,6 +211,7 @@ function askUnlock(){
     if(l.owner&&await codeHash(v,l.owner.salt)===l.owner.hash)m='owner';
     else if(l.admin&&await codeHash(v,l.admin.salt)===l.admin.hash)m='admin';
     else if(l.chef&&await codeHash(v,l.chef.salt)===l.chef.hash)m='chef';
+    else if(l.staff&&await codeHash(v,l.staff.salt)===l.staff.hash)m='staff';
     if(m){d.close();unlockAs(m)}
     else{$('lkErr').innerHTML='<div class="note-box bad">That code is not right.</div>';
          $('lkCode').value='';$('lkCode').focus()}
@@ -1344,7 +1354,7 @@ function noteSheet(id){
 function boot(){
   document.getElementById('root').innerHTML=SHELL;
   try{var r0=sessionStorage.getItem('sv-i-role');
-      if(r0==='owner'||r0==='admin'||r0==='chef')role=r0}catch(e){}
+      if(r0==='owner'||r0==='admin'||r0==='chef'||r0==='staff')role=r0}catch(e){}
   try{var l0=sessionStorage.getItem('sv-i-loc');
       if(l0&&(l0==='ALL'||S.locations.some(function(x){return x.id===l0})))loc=l0}catch(e){}
   wire();
