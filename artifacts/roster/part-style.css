@@ -263,3 +263,13 @@ tr.past td:first-child{font-weight:500}
 .btn-refresh.busy svg{animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media print{.btn-refresh{display:none}}
+
+/* The weekly grid sized itself by content, and an auto table gives every
+   spare pixel to the first unconstrained column - so Monday came out twice
+   the width of Tuesday. Fix the layout and pin only the two columns that
+   have a natural size; the seven days then divide what is left, equally,
+   at any window width. */
+#grid{table-layout:fixed}
+#grid thead .col-person{width:200px}
+#grid thead th.hcol{width:66px}
+@media (max-width:700px){#grid thead .col-person{width:150px}}
