@@ -7,7 +7,7 @@
 --day defaults to today in Abu Dhabi. Pass --all to write every day the
 page holds rather than one day.
 """
-import argparse, datetime, json, re, sys
+import argparse, csv, datetime, json, re, sys
 
 try:
     from openpyxl import Workbook
@@ -62,6 +62,10 @@ def main():
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--out")
     ap.add_argument("--generated-at")
+    ap.add_argument("--csv", action="store_true",
+                    help="print the rows as CSV on stdout instead of writing a workbook. "
+                         "Text this size crosses into Google Drive intact; a binary "
+                         "workbook does not.")
     args = ap.parse_args()
 
     state = load_state(args.state)
@@ -74,6 +78,22 @@ def main():
 
     out = args.out or ("Shan Village Wastage %s.xlsx" % ("all days" if args.all else day))
     gen = args.generated_at or datetime.datetime.now(GULF).strftime("%Y-%m-%d %H:%M")
+
+    if args.csv:
+        w = csv.writer(sys.stdout, lineterminator="\n")
+        w.writerow(["Date", "Time", "Item", "Quantity", "Unit",
+                    "Value (%s)" % currency, "Reason", "Note", "Sent by",
+                    "Picture", "Entry id"])
+        for e in rows:
+            w.writerow([e.get("d", ""), e.get("t", ""), e.get("item", ""),
+                        e.get("qty", ""), e.get("unit", ""),
+                        "" if e.get("price") in (None, "") else e.get("price"),
+                        e.get("reason", ""), e.get("note", ""), e.get("by", ""),
+                        "yes" if e.get("photo") else ("expired" if e.get("hadPhoto") else "no"),
+                        e.get("id", "")])
+        sys.stderr.write("%d row(s) for %s, generated %s Abu Dhabi time\n"
+                         % (len(rows), "every day on file" if args.all else day, gen))
+        return 0 if rows else 9
 
     wb = Workbook()
 
@@ -173,4 +193,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

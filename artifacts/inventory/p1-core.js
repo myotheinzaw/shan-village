@@ -19,6 +19,9 @@ var PENDING='sv-i-pending';
 
 var api=null, role=null, readOnly=false, busy=false, tab='dash';
 var loc='ALL', idleTimer=null, session=null, photoFor=null;
+/* True while the camera or gallery is in front of the browser, so the
+   page cannot decide it is idle and reload itself under a picture. */
+var picking=false;
 
 /* ------------------------------ time -------------------------------- */
 function partsNow(){

@@ -213,6 +213,6 @@ LOGO,
 '</main>',
 '<dialog id="sheet"></dialog>',
 '<dialog id="light" class="lightbox"></dialog>',
-'<input type="file" id="photoFile" accept="image/*" capture="environment" hidden>',
+'<input type="file" id="photoFile" accept="image/*" hidden>',
 '<input type="file" id="csvFile" accept=".csv,text/csv" hidden>'
 ].join('');

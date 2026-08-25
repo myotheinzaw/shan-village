@@ -26,6 +26,9 @@ var LOCALQ='sv-w-local';         /* entries this phone could not send yet */
 
 var api=null, apiKnown=false, role=null, readOnly=false, sending=false, tab='add';
 var photo=null, idleTimer=null;
+/* True while the camera or gallery is in front of the browser. The page
+   must not decide it is idle and reload itself under a picture. */
+var picking=false;
 
 /* ------------------------------ time -------------------------------- */
 /* Every date and time in this page is Abu Dhabi's, never the phone's:

@@ -85,10 +85,11 @@ function wire(){
   $('refreshBtn').onclick=function(){
     var b=$('refreshBtn'); b.disabled=true; b.classList.add('busy'); location.reload();
   };
-  $('shotBtn').onclick=function(){$('shotFile').click()};
+  $('shotBtn').onclick=function(){ picking=true; $('shotFile').click() };
   $('shotFile').onchange=function(){
     var f=this.files&&this.files[0]; this.value='';
-    if(!f)return;
+    picking=false;
+    if(!f){$('shotHint').textContent='No picture came back. Try again, or send it without one.';return}
     $('shotHint').textContent='Shrinking the picture…';
     shrink(f,function(dataUrl,err){
       if(err){$('shotHint').textContent=err;return}
@@ -203,7 +204,7 @@ function boot(){
 
   /* a page nobody is working in catches up by itself */
   var AUTO=900000, AWAY=300000, hiddenAt=0;
-  function idle(){return !sending&&!isOffice()&&!photo&&!LOCAL.length&&!$('fItem').value.trim()}
+  function idle(){return !sending&&!isOffice()&&!photo&&!picking&&!LOCAL.length&&!$('fItem').value.trim()}
   setInterval(function(){ if(idle()&&document.visibilityState==='visible')location.reload() },AUTO);
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}

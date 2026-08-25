@@ -26,6 +26,9 @@ var LOCALQ='sv-w-local';         /* entries this phone could not send yet */
 
 var api=null, apiKnown=false, role=null, readOnly=false, sending=false, tab='add';
 var photo=null, idleTimer=null;
+/* True while the camera or gallery is in front of the browser. The page
+   must not decide it is idle and reload itself under a picture. */
+var picking=false;
 
 /* ------------------------------ time -------------------------------- */
 /* Every date and time in this page is Abu Dhabi's, never the phone's:
@@ -385,7 +388,7 @@ LOGO,
 '            <button type="button" class="shot-drop" id="shotDrop" aria-label="Remove the picture">&times;</button>',
 '          </div>',
 '        </div>',
-'        <input type="file" id="shotFile" accept="image/*" capture="environment" hidden>',
+'        <input type="file" id="shotFile" accept="image/*" hidden>',
 '        <div class="hint" id="shotHint">Optional, but a picture settles most questions later.</div>',
 '      </div>',
 '      <div class="field">',
@@ -1098,10 +1101,11 @@ function wire(){
   $('refreshBtn').onclick=function(){
     var b=$('refreshBtn'); b.disabled=true; b.classList.add('busy'); location.reload();
   };
-  $('shotBtn').onclick=function(){$('shotFile').click()};
+  $('shotBtn').onclick=function(){ picking=true; $('shotFile').click() };
   $('shotFile').onchange=function(){
     var f=this.files&&this.files[0]; this.value='';
-    if(!f)return;
+    picking=false;
+    if(!f){$('shotHint').textContent='No picture came back. Try again, or send it without one.';return}
     $('shotHint').textContent='Shrinking the picture…';
     shrink(f,function(dataUrl,err){
       if(err){$('shotHint').textContent=err;return}
@@ -1216,7 +1220,7 @@ function boot(){
 
   /* a page nobody is working in catches up by itself */
   var AUTO=900000, AWAY=300000, hiddenAt=0;
-  function idle(){return !sending&&!isOffice()&&!photo&&!LOCAL.length&&!$('fItem').value.trim()}
+  function idle(){return !sending&&!isOffice()&&!photo&&!picking&&!LOCAL.length&&!$('fItem').value.trim()}
   setInterval(function(){ if(idle()&&document.visibilityState==='visible')location.reload() },AUTO);
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}

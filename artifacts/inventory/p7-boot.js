@@ -116,7 +116,9 @@ function wire(){
   };
   $('photoFile').onchange=function(){
     var f=this.files&&this.files[0]; this.value='';
-    if(!f||!photoFor)return;
+    picking=false;
+    if(!f){toast('No picture came back. Try again, or count it without one.',4000);return}
+    if(!photoFor)return;
     var id=photoFor; photoFor=null;
     if(id==='__add'){
       toast('Shrinking the picture…',1200);
@@ -167,7 +169,7 @@ function wire(){
     var m=ev.target.closest('[data-minus]'); if(m){bump(m.getAttribute('data-minus'),-1);return}
     var p=ev.target.closest('[data-plus]');  if(p){bump(p.getAttribute('data-plus'),1);return}
     var zr=ev.target.closest('[data-zero]'); if(zr){setQty(zr.getAttribute('data-zero'),0);return}
-    var ph=ev.target.closest('[data-photo]'); if(ph){photoFor=ph.getAttribute('data-photo');$('photoFile').click();return}
+    var ph=ev.target.closest('[data-photo]'); if(ph){photoFor=ph.getAttribute('data-photo');picking=true;$('photoFile').click();return}
     var nt=ev.target.closest('[data-note]'); if(nt){noteSheet(nt.getAttribute('data-note'));return}
     var ed=ev.target.closest('[data-edit]'); if(ed&&canManage()){itemSheet(item(ed.getAttribute('data-edit')));return}
     var op=ev.target.closest('[data-open]'); if(op){session=op.getAttribute('data-open');showRun();return}
@@ -239,7 +241,7 @@ function boot(){
 
   /* A page nobody is working in catches up by itself. */
   var AUTO=900000, AWAY=300000, hiddenAt=0;
-  function idle(){return !busy&&!session&&!canCount()}
+  function idle(){return !busy&&!session&&!picking&&!canCount()}
   setInterval(function(){ if(idle()&&document.visibilityState==='visible')location.reload() },AUTO);
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}

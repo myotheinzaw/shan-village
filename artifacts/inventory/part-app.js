@@ -19,6 +19,9 @@ var PENDING='sv-i-pending';
 
 var api=null, role=null, readOnly=false, busy=false, tab='dash';
 var loc='ALL', idleTimer=null, session=null, photoFor=null;
+/* True while the camera or gallery is in front of the browser, so the
+   page cannot decide it is idle and reload itself under a picture. */
+var picking=false;
 
 /* ------------------------------ time -------------------------------- */
 function partsNow(){
@@ -486,7 +489,7 @@ LOGO,
 '</main>',
 '<dialog id="sheet"></dialog>',
 '<dialog id="light" class="lightbox"></dialog>',
-'<input type="file" id="photoFile" accept="image/*" capture="environment" hidden>',
+'<input type="file" id="photoFile" accept="image/*" hidden>',
 '<input type="file" id="csvFile" accept=".csv,text/csv" hidden>'
 ].join('');
 
@@ -930,7 +933,7 @@ function addCountSheet(){
     '<button class="btn primary" id="acSave">Save and count another</button></div></div>');
 
   var shot=null;
-  $('acShot').onclick=function(){ photoFor='__add'; $('photoFile').click() };
+  $('acShot').onclick=function(){ photoFor='__add'; picking=true; $('photoFile').click() };
   window.__acPhoto=function(dataUrl){
     shot=dataUrl; $('acImg').src=dataUrl; $('acPrev').hidden=false;
     $('acHint').textContent='Picture ready ('+Math.round(dataUrl.length/1024)+' KB).';
@@ -1311,10 +1314,18 @@ function buildDocument(){
     +'<script id="state" type="application/json">'+json+'<\/script>'
     +'<script id="app">'+app+'<\/script></body></html>';
 }
+/* Saving republishes this page, and only a signed-in Claude account with
+   edit access to the link may do that. Say which half is missing. */
 function goReadOnly(){
   readOnly=true;
-  $('banner').innerHTML='<div class="note-box bad" style="margin-bottom:13px">This link can be read but not '+
-    'written to, so nothing you change here can be saved. Ask the office for the link that allows editing.</div>';
+  $('banner').innerHTML='<div class="note-box bad" style="margin-bottom:13px">'+
+    '<strong>Nothing can be saved from this phone yet.</strong><br>'+
+    'The page has opened in view-only mode. That happens when this phone is signed out of Claude '+
+    '- use the <strong>Sign in</strong> button at the very top of the screen - or when the account '+
+    'you signed in with was given the link to view but not to edit; the office has to share it '+
+    'again with editing allowed.'+
+    '<div style="margin-top:9px"><button class="btn" id="roReload">Reload and try again</button></div></div>';
+  var rb=$('roReload'); if(rb)rb.onclick=function(){location.reload()};
   renderChrome();
 }
 async function saveState(msg,quiet){
@@ -1405,7 +1416,9 @@ function wire(){
   };
   $('photoFile').onchange=function(){
     var f=this.files&&this.files[0]; this.value='';
-    if(!f||!photoFor)return;
+    picking=false;
+    if(!f){toast('No picture came back. Try again, or count it without one.',4000);return}
+    if(!photoFor)return;
     var id=photoFor; photoFor=null;
     if(id==='__add'){
       toast('Shrinking the picture…',1200);
@@ -1456,7 +1469,7 @@ function wire(){
     var m=ev.target.closest('[data-minus]'); if(m){bump(m.getAttribute('data-minus'),-1);return}
     var p=ev.target.closest('[data-plus]');  if(p){bump(p.getAttribute('data-plus'),1);return}
     var zr=ev.target.closest('[data-zero]'); if(zr){setQty(zr.getAttribute('data-zero'),0);return}
-    var ph=ev.target.closest('[data-photo]'); if(ph){photoFor=ph.getAttribute('data-photo');$('photoFile').click();return}
+    var ph=ev.target.closest('[data-photo]'); if(ph){photoFor=ph.getAttribute('data-photo');picking=true;$('photoFile').click();return}
     var nt=ev.target.closest('[data-note]'); if(nt){noteSheet(nt.getAttribute('data-note'));return}
     var ed=ev.target.closest('[data-edit]'); if(ed&&canManage()){itemSheet(item(ed.getAttribute('data-edit')));return}
     var op=ev.target.closest('[data-open]'); if(op){session=op.getAttribute('data-open');showRun();return}
@@ -1528,7 +1541,7 @@ function boot(){
 
   /* A page nobody is working in catches up by itself. */
   var AUTO=900000, AWAY=300000, hiddenAt=0;
-  function idle(){return !busy&&!session&&!canCount()}
+  function idle(){return !busy&&!session&&!picking&&!canCount()}
   setInterval(function(){ if(idle()&&document.visibilityState==='visible')location.reload() },AUTO);
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}

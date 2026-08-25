@@ -218,7 +218,7 @@ function addCountSheet(){
     '<button class="btn primary" id="acSave">Save and count another</button></div></div>');
 
   var shot=null;
-  $('acShot').onclick=function(){ photoFor='__add'; $('photoFile').click() };
+  $('acShot').onclick=function(){ photoFor='__add'; picking=true; $('photoFile').click() };
   window.__acPhoto=function(dataUrl){
     shot=dataUrl; $('acImg').src=dataUrl; $('acPrev').hidden=false;
     $('acHint').textContent='Picture ready ('+Math.round(dataUrl.length/1024)+' KB).';
