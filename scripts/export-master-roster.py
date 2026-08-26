@@ -15,7 +15,7 @@ Usage:
         [--history data/roster-history.json] \
         [--out "Shan Village - Master Roster.xlsx"]
 """
-import argparse, datetime, json, os, re, sys
+import argparse, csv, datetime, json, os, re, sys
 
 try:
     from openpyxl import Workbook
@@ -127,7 +127,12 @@ def load_history(path):
     return out, meta
 
 def load_state(path):
-    raw = json.load(open(path, encoding="utf8"))
+    # The page itself is the usual input, so a JSON parse failure is expected,
+    # not an error - fall through to pulling the state block out of the HTML.
+    try:
+        raw = json.load(open(path, encoding="utf8"))
+    except (ValueError, UnicodeDecodeError):
+        raw = {}
     if "roster" not in raw:          # a whole page was handed over, not the state
         m = re.search(r'<script id="state" type="application/json">(\{.*?)</script>',
                       open(path, encoding="utf8").read(), re.S)
@@ -171,6 +176,9 @@ def main():
                          "(monthly totals still cover every month)")
     ap.add_argument("--compact", action="store_true",
                     help="leave out the per-day Shift detail sheet (much smaller file)")
+    ap.add_argument("--csv", action="store_true",
+                    help="write CSV to stdout instead of a workbook - the fallback "
+                         "when the file is too big to transfer as a workbook")
     ap.add_argument("--generated-at", default=None,
                     help="ISO timestamp for the cover sheet (default: now, UTC)")
     args = ap.parse_args()
@@ -425,6 +433,52 @@ def main():
     if not log:
         ws.cell(row=2, column=1, value="No changes recorded yet.")
     ws.freeze_panes = "A2"
+
+    if args.csv:
+        # A workbook this size cannot be carried through a tool call intact, so
+        # the office still needs a copy it can open. Plain text always crosses.
+        w = csv.writer(sys.stdout)
+        w.writerow(["Shan Village - master duty roster"])
+        w.writerow(["Generated", gen])
+        w.writerow(["Roster last published", state.get("pub") or "not published yet"])
+        w.writerow(["Weeks covered", "%s to %s (%d weeks)" % (
+            week_starts[0], day_date(week_starts[-1], 6), len(week_starts))
+            if week_starts else "none"])
+        w.writerow(["Overtime rule", "above %g hours in a day" % limit])
+        w.writerow([])
+
+        w.writerow(["STAFF"])
+        w.writerow(["Employee", "Position", "Outlet", "On the roster now"])
+        for name, pos, outlet, current in staff:
+            w.writerow([name, pos or "", outlet or "", "Yes" if current else "No (past)"])
+        w.writerow([])
+
+        w.writerow(["MONTHLY OVERTIME"])
+        w.writerow(["Month", "Employee", "Position", "Normal hours", "Overtime hours",
+                    "Total hours", "Days worked", "Days off", "Leave", "Public hol.",
+                    "Days over %g h" % limit])
+        for (y, mth) in sorted(months):
+            for name in sorted(months[(y, mth)]):
+                m = months[(y, mth)][name]
+                w.writerow(["%s %d" % (MONTHS[mth - 1], y), name, pos_of.get(name) or "",
+                            round(m["normal"], 2), round(m["ot"], 2),
+                            round(m["normal"] + m["ot"], 2), m["worked"], m["off"],
+                            m["leave"], m["ph"], m["over_days"]])
+        w.writerow([])
+
+        w.writerow(["SHIFT DETAIL" + (" (most recent %d weeks)" % args.recent
+                                      if args.recent else "")])
+        w.writerow(["Date", "Day", "Week starting", "Employee", "Position", "Status",
+                    "Shift", "Hours", "Normal", "Overtime"])
+        keep = set(grid_weeks) if args.recent else None
+        for d, name, cell, h, normal, ot in detail:
+            ws_start = (d - datetime.timedelta(days=d.weekday())).isoformat()
+            if keep is not None and ws_start not in keep:
+                continue
+            w.writerow([d.isoformat(), DAYS[d.weekday()], ws_start, name,
+                        pos_of.get(name) or "", cell.get("k", ""), cell_label(cell),
+                        h, normal, ot])
+        return
 
     wb.save(args.out)
     print("wrote %s  (%d weeks, %d people, %d shift rows, %d months)"
