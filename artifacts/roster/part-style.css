@@ -151,6 +151,10 @@ body.is-admin nav.tabs button.admin-only{display:block}
 /* monthly grid */
 table.grid th.mday{padding:5px 2px;font-size:10px;min-width:26px}
 table.grid th.mday.we{background:var(--missing-soft)}
+/* the payroll month spans two calendar months: mark where it turns over */
+table.grid th.mday.mturn{border-left:2px solid var(--border-strong)}
+table.grid th.mday .mmon{display:block;font-size:9px;font-weight:600;color:var(--accent);letter-spacing:.03em}
+td.mcell.mturn{border-left:2px solid var(--border-strong)}
 td.mcell{text-align:center;font-family:var(--font-mono);font-size:11px;padding:5px 2px;
   border-bottom:1px solid var(--border);border-left:1px solid var(--border);color:var(--text-muted)}
 td.mcell.zero{color:var(--text-faint)}

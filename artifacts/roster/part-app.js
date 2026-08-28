@@ -525,12 +525,18 @@ LOGO,
 '        <input class="f" id="otLimit" type="number" min="1" max="24" step="0.5" style="width:78px">',
 '        <span class="faint" style="font-size:12px">hours a day</span>',
 '      </div>',
+'      <div class="row editor-only" style="gap:7px">',
+'        <label class="lbl" for="monthCut" style="margin:0">Month starts on the</label>',
+'        <input class="f" id="monthCut" type="number" min="1" max="28" step="1" style="width:66px">',
+'        <span class="faint" style="font-size:12px">of the month before</span>',
+'      </div>',
 '      <button class="btn actions" id="monthPrint">Print</button>',
 '    </div>',
 '    <div class="tiles" id="monthTiles"></div>',
 '    <div class="print-head"><div class="ph-title">SHAN VILLAGE - Monthly Hours</div>',
 '      <div class="ph-week" id="phMonth"></div><div class="ph-meta" id="phMonthMeta"></div></div>',
 '    <div class="wrap"><table class="grid" id="monthGrid"></table></div>',
+'    <div class="note accent"><strong>The month here runs to the payroll cut-off, not to the calendar.</strong> A month named above runs from the cut-off day in the month before up to the day before it: August 2026 is 26 July to 25 August 2026. Every figure on this page - hours, normal, overtime - is counted over that run, so it matches what payroll counts. Set the cut-off to 1 and you get a plain calendar month back.</div>',
 '    <div class="note accent"><strong>How overtime is counted here.</strong> Any hours above the daily limit count as overtime for that day; the rest count as normal time. A 12 hour day at a 10 hour limit is 10 normal and 2 overtime. Whether that overtime is paid is your decision - this page only shows the hours it would apply to. Remember no break is deducted anywhere.</div>',
 '  </section>',
 '  <section class="panel stack" id="panel-log" role="tabpanel" aria-labelledby="tab-log" hidden>',
@@ -630,15 +636,42 @@ function cellOnDate(pid,d){
   var row=wk[pid]; if(!row)return null;
   return row[Math.round((parseISO(d)-parseISO(mondayOf(parseISO(d))))/86400000)]||null;
 }
+/* The payroll month does not start on the 1st. Shan Village counts a month
+   from the 26th of the month before to the 25th of the month named, so
+   August 2026 is 26 July to 25 August. The cut-off day is a setting, and
+   setting it to 1 gives back a plain calendar month. */
+function monthCut(){var n=Number(S.mcut);return (isFinite(n)&&n>=1&&n<=28)?Math.round(n):26}
+function monthStart(ym){
+  var c=monthCut();
+  if(c===1)return ym+'-01';
+  var d=new Date(+ym.slice(0,4),+ym.slice(5,7)-2,c);
+  return iso(d);
+}
+function monthEnd(ym){
+  var c=monthCut();
+  if(c===1)return ym+'-'+pad(new Date(+ym.slice(0,4),+ym.slice(5,7),0).getDate());
+  return ym+'-'+pad(c-1);
+}
 function monthList(ym){
-  var y=+ym.slice(0,4), m=+ym.slice(5,7);
-  var last=new Date(y,m,0).getDate(), a=[];
-  for(var i=1;i<=last;i++)a.push(ym+'-'+pad(i));
+  var a=[], d=monthStart(ym), end=monthEnd(ym);
+  while(d<=end){a.push(d);d=addDays(d,1)}
   return a;
 }
 function monthTitle(ym){
   return new Date(+ym.slice(0,4),+ym.slice(5,7)-1,1)
     .toLocaleDateString(undefined,{month:'long',year:'numeric'});
+}
+/* '26 Jul - 25 Aug 2026', or the plain month when the cut-off is the 1st. */
+function monthRange(ym){
+  if(monthCut()===1)return monthTitle(ym);
+  return dshort(monthStart(ym))+' - '+dshort(monthEnd(ym))+' '+monthEnd(ym).slice(0,4);
+}
+/* Which payroll month a date falls in: on or after the cut-off it belongs
+   to the month that comes next. */
+function monthOf(d){
+  var y=+d.slice(0,4), m=+d.slice(5,7), day=+d.slice(8);
+  if(day>=monthCut()){m++; if(m>12){m=1;y++}}
+  return y+'-'+pad(m);
 }
 function shiftMonth(ym,n){
   var d=new Date(+ym.slice(0,4),+ym.slice(5,7)-1+n,1);
@@ -648,9 +681,13 @@ var monthCur=null;
 
 function renderMonth(){
   if(!$('monthGrid'))return;
-  if(!monthCur)monthCur=week.slice(0,7);
+  if(!monthCur)monthCur=monthOf(iso(new Date()));
   var days=monthList(monthCur), lim=otLimit(), today=iso(new Date());
-  $('monthLabel').textContent=monthTitle(monthCur);
+  $('monthLabel').innerHTML=esc(monthTitle(monthCur))+
+    (monthCut()===1?'':
+      '<div class="faint" style="font-family:var(--font-body);font-size:11.5px;font-weight:400">'+
+      esc(monthRange(monthCur))+'</div>');
+  var cutIn=$('monthCut'); if(cutIn&&document.activeElement!==cutIn)cutIn.value=monthCut();
   var otIn=$('otLimit'); if(otIn&&document.activeElement!==otIn)otIn.value=lim;
 
   var rows=S.staff.map(function(p){
@@ -666,24 +703,29 @@ function renderMonth(){
   var tN=0,tO=0,tT=0,people=0;
   rows.forEach(function(r){tN+=r.normal;tO+=r.over;tT+=r.total;if(r.total>0)people++});
   $('monthTiles').innerHTML=
-    tile('Staff with hours',people,'in '+monthTitle(monthCur))+
-    tile('Total hours',hl(Math.round(tT*100)/100),'everyone, whole month')+
+    tile('Staff with hours',people,'in '+monthTitle(monthCur)+' payroll month')+
+    tile('Total hours',hl(Math.round(tT*100)/100),'everyone, '+monthRange(monthCur))+
     tile('Normal hours',hl(Math.round(tN*100)/100),'up to '+lim+' h a day')+
     tile('Overtime hours',hl(Math.round(tO*100)/100),'above '+lim+' h a day')+
     tile('Days over '+lim+' h',rows.reduce(function(n,r){return n+r.perDay.filter(function(d){return d.h>lim}).length},0),'across the team');
 
   var h='<thead><tr><th class="col-person">Employee</th>';
-  days.forEach(function(d){
+  days.forEach(function(d,i){
     var wd=new Date(parseISO(d)).getDay();
-    h+='<th class="day mday'+(d===today?' today':'')+(wd===0||wd===6?' we':'')+'">'+d.slice(8)+'</th>';
+    /* the run crosses a month boundary, so the number alone is ambiguous:
+       name the month on the first column and again where it turns over */
+    var turn=(i===0)||(d.slice(8)==='01');
+    h+='<th class="day mday'+(d===today?' today':'')+(wd===0||wd===6?' we':'')+(turn?' mturn':'')+'">'+
+       (+d.slice(8))+(turn?'<div class="mmon">'+MONTHS[+d.slice(5,7)-1]+'</div>':'')+'</th>';
   });
   h+='<th class="hcol">Normal</th><th class="hcol">Overtime</th><th class="hcol">Total</th></tr></thead><tbody>';
 
   rows.forEach(function(r){
     h+='<tr><td class="col-person"><div class="pname">'+esc(r.p.name)+'</div>'+
        '<div class="prole">'+esc(r.p.pos||'-')+'</div></td>';
-    r.perDay.forEach(function(d){
+    r.perDay.forEach(function(d,i){
       var cls=d.h>lim?'mcell ot':(d.h>0?'mcell':'mcell zero');
+      if(i===0||days[i].slice(8)==='01')cls+=' mturn';
       h+='<td class="'+cls+'"'+(d.h?' title="'+esc(cellLabel(d.c)+' - '+hl(d.h)+' h')+'"':'')+'>'+
          (d.h?hl(d.h):(d.c?'-':''))+'</td>';
     });
@@ -692,9 +734,10 @@ function renderMonth(){
        '<td class="hcol"><strong>'+hl(Math.round(r.total*100)/100)+'</strong></td></tr>';
   });
   h+='</tbody><tfoot><tr><td class="col-person">Team total</td>';
-  days.forEach(function(d){
-    var dayTotal=rows.reduce(function(n,r){var x=r.perDay[days.indexOf(d)];return n+(x?x.h:0)},0);
-    h+='<td class="mcell">'+(dayTotal?hl(Math.round(dayTotal*10)/10):'')+'</td>';
+  days.forEach(function(d,i){
+    var dayTotal=rows.reduce(function(n,r){var x=r.perDay[i];return n+(x?x.h:0)},0);
+    h+='<td class="mcell'+((i===0||d.slice(8)==='01')?' mturn':'')+'">'+
+       (dayTotal?hl(Math.round(dayTotal*10)/10):'')+'</td>';
   });
   h+='<td class="hcol"><strong>'+hl(Math.round(tN*100)/100)+'</strong></td>'+
      '<td class="hcol otsum"><strong>'+hl(Math.round(tO*100)/100)+'</strong></td>'+
@@ -1259,10 +1302,20 @@ function wire(){
   $('prevMonth').onclick=function(){monthCur=shiftMonth(monthCur,-1);renderMonth()};
   $('nextMonth').onclick=function(){monthCur=shiftMonth(monthCur,1);renderMonth()};
   $('monthPrint').onclick=function(){
-    $('phMonth').textContent=monthTitle(monthCur);
+    $('phMonth').textContent=monthTitle(monthCur)+'  -  '+monthRange(monthCur);
     $('phMonthMeta').textContent='Overtime counted above '+otLimit()+' hours a day  -  '+
       (S.pub?'published '+stampText(S.pub):'draft');
     window.print();
+  };
+  $('monthCut').onchange=function(){
+    var v=Number($('monthCut').value);
+    if(!isFinite(v)||v<1||v>28){$('monthCut').value=monthCut();return}
+    v=Math.round(v);
+    if(v===monthCut())return;
+    logChange('Payroll month now starts on the '+v+' of the month before');
+    S.mcut=v; touch();
+    monthCur=monthOf(iso(new Date()));
+    renderMonth();
   };
   $('otLimit').onchange=function(){
     var v=Number($('otLimit').value);
