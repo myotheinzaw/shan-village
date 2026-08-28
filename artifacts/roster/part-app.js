@@ -530,7 +530,8 @@ LOGO,
 '        <input class="f" id="monthCut" type="number" min="1" max="28" step="1" style="width:66px">',
 '        <span class="faint" style="font-size:12px">of the month before</span>',
 '      </div>',
-'      <button class="btn actions" id="monthPrint">Print</button>',
+'      <button class="btn actions" id="monthCsvBtn">Copy as CSV</button>',
+'      <button class="btn actions primary" id="monthPdf">Save as PDF</button>',
 '    </div>',
 '    <div class="tiles" id="monthTiles"></div>',
 '    <div class="print-head"><div class="ph-title">SHAN VILLAGE - Monthly Hours</div>',
@@ -679,6 +680,22 @@ function shiftMonth(ym,n){
 }
 var monthCur=null;
 
+/* One person per row for a payroll month: the day by day hours, and the
+   normal / overtime split at the limit. The month view and the PDF both
+   read this, so a figure on screen and a figure on paper cannot differ. */
+function monthRows(ym,lim){
+  var days=monthList(ym);
+  return S.staff.map(function(p){
+    var normal=0,over=0,total=0,daysWorked=0,perDay=[];
+    days.forEach(function(d){
+      var c=cellOnDate(p.id,d), h=hoursOf(c);
+      perDay.push({h:h,c:c});
+      if(h>0){daysWorked++;total+=h;normal+=Math.min(h,lim);over+=Math.max(0,h-lim)}
+    });
+    return {p:p,perDay:perDay,normal:normal,over:over,total:total,daysWorked:daysWorked};
+  }).filter(function(r){return !r.p.x||r.total>0});
+}
+
 function renderMonth(){
   if(!$('monthGrid'))return;
   if(!monthCur)monthCur=monthOf(iso(new Date()));
@@ -688,17 +705,15 @@ function renderMonth(){
       '<div class="faint" style="font-family:var(--font-body);font-size:11.5px;font-weight:400">'+
       esc(monthRange(monthCur))+'</div>');
   var cutIn=$('monthCut'); if(cutIn&&document.activeElement!==cutIn)cutIn.value=monthCut();
+  /* the print header, for anyone who reaches for the browser's own print */
+  if($('phMonth')){
+    $('phMonth').textContent=monthTitle(monthCur)+'  -  '+monthRange(monthCur);
+    $('phMonthMeta').textContent='Overtime counted above '+otLimit()+' hours a day  -  '+
+      (S.pub?'published '+stampText(S.pub):'draft');
+  }
   var otIn=$('otLimit'); if(otIn&&document.activeElement!==otIn)otIn.value=lim;
 
-  var rows=S.staff.map(function(p){
-    var normal=0,over=0,total=0,daysWorked=0,perDay=[];
-    days.forEach(function(d){
-      var c=cellOnDate(p.id,d), h=hoursOf(c);
-      perDay.push({h:h,c:c});
-      if(h>0){daysWorked++;total+=h;normal+=Math.min(h,lim);over+=Math.max(0,h-lim)}
-    });
-    return {p:p,perDay:perDay,normal:normal,over:over,total:total,daysWorked:daysWorked};
-  }).filter(function(r){return !r.p.x||r.total>0});
+  var rows=monthRows(monthCur,lim);
 
   var tN=0,tO=0,tT=0,people=0;
   rows.forEach(function(r){tN+=r.normal;tO+=r.over;tT+=r.total;if(r.total>0)people++});
@@ -1191,6 +1206,243 @@ function buildWeekPdf(){
   return assemblePdf(pages,W,H);
 }
 
+/* The month as a spreadsheet. This is the one export that works whatever
+   the page's sharing setting is, so it is offered beside the PDF and is
+   what the PDF button falls back to when saving files is not allowed. */
+function monthCsv(){
+  var lim=otLimit(), days=monthList(monthCur), rows=monthRows(monthCur,lim);
+  var q=function(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  var out=[['Shan Village - '+monthTitle(monthCur)+' payroll month'],
+           [monthRange(monthCur)+'; overtime above '+hl(lim)+' hours a day'],[]];
+  out.push(['Employee','Position'].concat(days.map(function(d){return dshort(d)}))
+    .concat(['Days worked','Normal','Overtime','Total']));
+  rows.forEach(function(r){
+    out.push([r.p.name,r.p.pos||''].concat(r.perDay.map(function(d){
+      return d.h>0?hl(d.h):(d.c?d.c.k.toLowerCase():'');
+    })).concat([r.daysWorked,Math.round(r.normal*100)/100,
+                Math.round(r.over*100)/100,Math.round(r.total*100)/100]));
+  });
+  var tN=0,tO=0,tT=0;
+  rows.forEach(function(r){tN+=r.normal;tO+=r.over;tT+=r.total});
+  out.push(['Team total',''].concat(days.map(function(){return ''}))
+    .concat(['',Math.round(tN*100)/100,Math.round(tO*100)/100,Math.round(tT*100)/100]));
+  return out.map(function(row){return row.map(q).join(',')}).join('\n');
+}
+function copyToClipboard(text,okMsg){
+  var done=function(){toast(okMsg||'Copied.',3000)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done,function(){legacyCopy(text,done)});
+  }else legacyCopy(text,done);
+}
+function legacyCopy(text,done){
+  var ta=document.createElement('textarea');
+  ta.value=text; ta.setAttribute('readonly','');
+  ta.style.position='fixed'; ta.style.top='-1000px';
+  document.body.appendChild(ta); ta.select();
+  try{document.execCommand('copy');done()}catch(e){toast('This browser would not let the page copy.',3500)}
+  document.body.removeChild(ta);
+}
+
+function buildMonthPdf(){
+  var W=842,H=595,M=22;
+  var lim=otLimit(), days=monthList(monthCur), rows=monthRows(monthCur,lim);
+  var nameW=112, hourW=40, hourCols=3;
+  var dayW=(W-2*M-nameW-hourW*hourCols)/days.length;
+  var headTop=H-M-62;
+  var space=headTop-M-30;
+  var rowH=Math.max(22,Math.min(40,Math.floor(space/Math.max(rows.length+1,1))));
+  var perPage=Math.max(1,Math.floor(space/rowH));
+  var pages=[];
+
+  var tN=0,tO=0,tT=0,people=0;
+  rows.forEach(function(r){tN+=r.normal;tO+=r.over;tT+=r.total;if(r.total>0)people++});
+  var rnd=function(n){return Math.round(n*100)/100};
+
+  function masthead(c){
+    c+=box(0,H-M-30,W,30,'0.09 0.075 0.062');
+    c+=box(0,H-M-33,W,3,'0.757 0.314 0.122');
+    c+='1 1 1 rg '+T(M,H-M-21,15,'F2','SHAN VILLAGE');
+    c+='0.85 0.78 0.62 rg '+T(M+128,H-M-21,10,'F1','Monthly hours and overtime');
+    var t=monthTitle(monthCur);
+    c+='1 1 1 rg '+T(W-M-textWidth(t,11),H-M-21,11,'F2',t);
+    return c;
+  }
+  /* the strip under the masthead: what run this is and how it was counted */
+  function subhead(c){
+    var y=H-M-46;
+    c+='0.35 0.31 0.27 rg '+T(M,y,9,'F1',monthCut()===1?('Calendar month - '+monthTitle(monthCur))
+      :('Payroll month - '+monthRange(monthCur)+'  (the '+monthCut()+' of the month before to the day before it)'));
+    var r='Overtime above '+hl(lim)+' h a day  |  '+people+' with hours  |  '
+      +hl(rnd(tT))+' h total  |  '+hl(rnd(tN))+' normal  |  '+hl(rnd(tO))+' overtime';
+    c+='0.35 0.31 0.27 rg '+T(W-M-textWidth(r,9),y,9,'F1',r);
+    return c;
+  }
+  function footer(c,n){
+    var f='Published '+stampText(S.pub)+' '+TZ_LABEL+'   |   Hours are start to finish, no break deducted';
+    c+='0.55 0.5 0.42 rg '+T(M,M-6,7,'F1',f);
+    var pg='Page '+n;
+    c+='0.55 0.5 0.42 rg '+T(W-M-textWidth(pg,7),M-6,7,'F1',pg);
+    return c;
+  }
+
+  /* ---- the grid, one page per slice of the team ---- */
+  for(var start=0;start<Math.max(rows.length,1);start+=perPage){
+    var slice=rows.slice(start,start+perPage);
+    var c=footer(subhead(masthead('')),pages.length+1);
+    var y=headTop, x=M;
+    c+=box(M,y-22,W-2*M,22,'0.953 0.925 0.863');
+    c+='0.35 0.31 0.27 rg '+T(x+5,y-14,7.5,'F2','EMPLOYEE');
+    x+=nameW;
+    days.forEach(function(d,i){
+      var turn=(i===0)||(d.slice(8)==='01');
+      c+='0.35 0.31 0.27 rg '+Tc(x+dayW/2,y-(turn?10:13),7,'F2',String(+d.slice(8)));
+      if(turn)c+='0.757 0.314 0.122 rg '+Tc(x+dayW/2,y-18,5.5,'F2',MONTHS[+d.slice(5,7)-1].toUpperCase());
+      x+=dayW;
+    });
+    ['NORMAL','OVERTIME','TOTAL'].forEach(function(t){
+      c+='0.35 0.31 0.27 rg '+Tc(x+hourW/2,y-14,6.5,'F2',t); x+=hourW;
+    });
+    c+=ln(M,y-22,W-M,y-22,0.8,'0.82 0.76 0.65');
+
+    var ry=y-22;
+    slice.forEach(function(r,idx){
+      var top=ry, bot=ry-rowH;
+      if(idx%2===1)c+=box(M,bot,W-2*M,rowH,'0.988 0.976 0.949');
+      c+='0.14 0.11 0.08 rg '+T(M+5,bot+rowH/2+1,8.5,'F2',r.p.name);
+      if(r.p.pos)c+='0.55 0.5 0.42 rg '+T(M+5,bot+rowH/2-7.5,6,'F1',r.p.pos);
+      var cx=M+nameW;
+      r.perDay.forEach(function(d,i){
+        if(i===0||days[i].slice(8)==='01')c+=ln(cx,top,cx,bot,0.8,'0.72 0.66 0.55');
+        else c+=ln(cx,top,cx,bot,0.3,'0.91 0.88 0.81');
+        if(d.h>lim)c+=box(cx+1,bot+1,dayW-2,rowH-2,'0.969 0.882 0.855');
+        if(d.h>0){
+          c+=(d.h>lim?'0.612 0.169 0.122':'0.14 0.11 0.08')+' rg '+
+             Tc(cx+dayW/2,bot+rowH/2-2.5,6.5,d.h>lim?'F2':'F1',hl(d.h));
+        }else if(d.c){
+          c+='0.55 0.5 0.42 rg '+Tc(cx+dayW/2,bot+rowH/2-2.5,6,'F1',
+             d.c.k==='OFF'?'off':(d.c.k==='PH'?'ph':(d.c.k==='LEAVE'?'lv':'-')));
+        }
+        cx+=dayW;
+      });
+      [[r.normal,'F1','0.14 0.11 0.08'],
+       [r.over,'F2',r.over>0?'0.612 0.169 0.122':'0.72 0.68 0.6'],
+       [r.total,'F2','0.14 0.11 0.08']].forEach(function(col){
+        c+=ln(cx,top,cx,bot,0.4,'0.89 0.85 0.77');
+        c+=col[2]+' rg '+Tc(cx+hourW/2,bot+rowH/2-2.5,8,col[1],col[0]?hl(rnd(col[0])):'-');
+        cx+=hourW;
+      });
+      c+=ln(M,bot,W-M,bot,0.4,'0.89 0.85 0.77');
+      ry=bot;
+    });
+
+    /* the team line, on the page that carries the last person */
+    if(start+perPage>=rows.length&&rows.length){
+      var tb=ry-rowH;
+      c+=box(M,tb,W-2*M,rowH,'0.953 0.925 0.863');
+      c+='0.14 0.11 0.08 rg '+T(M+5,tb+rowH/2-2.5,8.5,'F2','TEAM TOTAL');
+      var tx=M+nameW+dayW*days.length;
+      [[tN,'0.14 0.11 0.08'],[tO,'0.612 0.169 0.122'],[tT,'0.14 0.11 0.08']].forEach(function(col){
+        c+=col[1]+' rg '+Tc(tx+hourW/2,tb+rowH/2-2.5,8.5,'F2',hl(rnd(col[0])));
+        tx+=hourW;
+      });
+      c+=ln(M,tb,W-M,tb,0.8,'0.82 0.76 0.65');
+      ry=tb;
+    }
+    c+=ln(M,headTop,W-M,headTop,0.8,'0.82 0.76 0.65');
+    c+=ln(M,headTop,M,ry,0.8,'0.82 0.76 0.65');
+    c+=ln(W-M,headTop,W-M,ry,0.8,'0.82 0.76 0.65');
+    pages.push(c);
+    if(!rows.length)break;
+  }
+
+  /* ---- a page for payroll: the overtime on its own ---- */
+  var ot=rows.slice().sort(function(a,b){return b.over-a.over||b.total-a.total});
+  var oc=footer(subhead(masthead('')),pages.length+1);
+  var oy=headTop, ow=[298,125,125,125,125], ox=M;
+  oc+=box(M,oy-22,ow[0]+ow[1]+ow[2]+ow[3]+ow[4],22,'0.953 0.925 0.863');
+  ['EMPLOYEE','DAYS WORKED','TOTAL HOURS','NORMAL','OVERTIME'].forEach(function(t,i){
+    oc+='0.35 0.31 0.27 rg '+(i?Tc(ox+ow[i]/2,oy-14,7.5,'F2',t):T(ox+5,oy-14,7.5,'F2',t));
+    ox+=ow[i];
+  });
+  oc+=ln(M,oy-22,M+ow[0]+ow[1]+ow[2]+ow[3]+ow[4],oy-22,0.8,'0.82 0.76 0.65');
+  var orH=Math.max(22,Math.min(36,Math.floor((headTop-M-90)/Math.max(ot.length+1,1))));
+  var oryy=oy-22;
+  ot.forEach(function(r,idx){
+    if(oryy-orH<M+20)return;
+    var bot=oryy-orH, cx2=M;
+    if(idx%2===1)oc+=box(M,bot,ow[0]+ow[1]+ow[2]+ow[3]+ow[4],orH,'0.988 0.976 0.949');
+    oc+='0.14 0.11 0.08 rg '+T(cx2+5,bot+orH/2-2.5,9,'F2',r.p.name);
+    cx2+=ow[0];
+    [[r.daysWorked,'0.14 0.11 0.08','F1'],[rnd(r.total),'0.14 0.11 0.08','F1'],
+     [rnd(r.normal),'0.14 0.11 0.08','F1'],
+     [rnd(r.over),r.over>0?'0.612 0.169 0.122':'0.72 0.68 0.6','F2']].forEach(function(col,i){
+      oc+=col[1]+' rg '+Tc(cx2+ow[i+1]/2,bot+orH/2-2.5,9,col[2],col[0]?hl(col[0]):'-');
+      cx2+=ow[i+1];
+    });
+    oc+=ln(M,bot,M+ow[0]+ow[1]+ow[2]+ow[3]+ow[4],bot,0.4,'0.89 0.85 0.77');
+    oryy=bot;
+  });
+  var totW=ow[0]+ow[1]+ow[2]+ow[3]+ow[4];
+  var tb2=oryy-orH;
+  oc+=box(M,tb2,totW,orH,'0.953 0.925 0.863');
+  oc+='0.14 0.11 0.08 rg '+T(M+5,tb2+orH/2-2.5,9,'F2','TEAM TOTAL');
+  var tx2=M+ow[0]+ow[1];
+  [[rnd(tT),'0.14 0.11 0.08'],[rnd(tN),'0.14 0.11 0.08'],[rnd(tO),'0.612 0.169 0.122']].forEach(function(col,i){
+    oc+=col[1]+' rg '+Tc(tx2+ow[i+2]/2,tb2+orH/2-2.5,9,'F2',hl(col[0]));
+    tx2+=ow[i+2];
+  });
+  oc+=ln(M,headTop,M+totW,headTop,0.8,'0.82 0.76 0.65');
+  oc+=ln(M,headTop,M,tb2,0.8,'0.82 0.76 0.65');
+  oc+=ln(M+totW,headTop,M+totW,tb2,0.8,'0.82 0.76 0.65');
+  oc+=ln(M,tb2,M+totW,tb2,0.8,'0.82 0.76 0.65');
+  oc+='0.55 0.5 0.42 rg '+T(M,tb2-16,8,'F1',
+    'Overtime is the hours above '+hl(lim)+' in a single day, added up over '+monthRange(monthCur)+'.');
+  oc+='0.55 0.5 0.42 rg '+T(M,tb2-28,8,'F1',
+    'Whether it is paid is a management decision - this sheet only shows the hours it would apply to.');
+  pages.push(oc);
+
+  return assemblePdf(pages,W,H);
+}
+
+async function exportMonthPdf(){
+  var name='Shan-Village-Monthly-'+monthCur+'.pdf';
+  var bytes;
+  try{ bytes=buildMonthPdf() }
+  catch(e){ toast('Could not build the PDF.',4000); return }
+  if(dl){
+    try{
+      await dl.save({filename:name,data:bytes});
+      toast('Saved '+monthTitle(monthCur)+' as a PDF.',4000);
+      return;
+    }catch(err){
+      var code=(err&&err.code)||'unavailable';
+      if(code==='declined')return;
+      if(code==='rate_limited'){ toast('One download at a time. Try again in a moment.',3500); return }
+    }
+  }
+  noDownloadSheet();
+}
+/* Saving a file is a permission the page is granted, and a page shared by
+   link is not allowed to have it. Say that, and give the way out that
+   does work rather than a button that quietly does nothing. */
+function noDownloadSheet(){
+  var d=lockSheet(
+    '<div class="sheet-head"><h3>This page cannot save files</h3>'+
+    '<div class="who">'+esc(monthTitle(monthCur))+' - '+esc(monthRange(monthCur))+'</div></div>'+
+    '<div class="sheet-body">'+
+      '<div class="note">While the roster is shared by link so that anyone can open it, Claude does not '+
+      'let the page write a file to your device. That is why Print did nothing.</div>'+
+      '<div class="note accent"><strong>Copy as CSV works everywhere.</strong> Paste it into Excel: '+
+      'every day, the days worked, and the normal, overtime and total hours for each person.</div>'+
+      '<div class="note">To get the PDF itself, turn link sharing off under Share. Everyone then needs '+
+      'a Claude account with access, and the button saves the file.</div>'+
+    '</div>'+
+    '<div class="sheet-foot"><button class="btn" id="ndClose">Close</button>'+
+    '<button class="btn primary" id="ndCsv">Copy as CSV</button></div>');
+  $('ndClose').onclick=function(){d.close()};
+  $('ndCsv').onclick=function(){d.close();copyToClipboard(monthCsv(),'Month copied. Paste it into Excel.')};
+}
+
 function assemblePdf(streams,W,H){
   var n=streams.length;
   var objs=[], out='%PDF-1.4\n';
@@ -1301,12 +1553,8 @@ function wire(){
   $('lockSet').onclick=askSetCodes;
   $('prevMonth').onclick=function(){monthCur=shiftMonth(monthCur,-1);renderMonth()};
   $('nextMonth').onclick=function(){monthCur=shiftMonth(monthCur,1);renderMonth()};
-  $('monthPrint').onclick=function(){
-    $('phMonth').textContent=monthTitle(monthCur)+'  -  '+monthRange(monthCur);
-    $('phMonthMeta').textContent='Overtime counted above '+otLimit()+' hours a day  -  '+
-      (S.pub?'published '+stampText(S.pub):'draft');
-    window.print();
-  };
+  $('monthPdf').onclick=exportMonthPdf;
+  $('monthCsvBtn').onclick=function(){copyToClipboard(monthCsv(),'Month copied. Paste it into Excel.')};
   $('monthCut').onchange=function(){
     var v=Number($('monthCut').value);
     if(!isFinite(v)||v<1||v>28){$('monthCut').value=monthCut();return}
