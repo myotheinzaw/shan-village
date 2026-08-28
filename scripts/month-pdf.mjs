@@ -14,6 +14,7 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf('--' + name);
@@ -44,9 +45,20 @@ if (tail >= 0) doc = doc.slice(0, tail + '</script></body></html>'.length);
 /* Reach past the page's closure for the two things we need, without
  * touching what is published: this copy is local and thrown away. */
 const hook = `
-window.__monthPdf=function(ym){ if(ym)monthCur=ym; return buildMonthPdf() };
 window.__monthCut=function(){ return monthCut() };
-window.__pub=function(){ return S.pub };
+window.__monthPdf=function(ym){ if(ym)monthCur=ym; return buildMonthPdf() };
+/* The page writes its PDF uncompressed, which is right for a browser that
+   hands the file straight to the person. Out here the file has to cross a
+   tool call to reach Drive, and 60,000 characters of base64 does not make
+   it. So catch the page streams on their way into the writer and deflate
+   them here - same drawing operators, a fifth of the bytes. */
+window.__monthParts=function(ym){
+  if(ym)monthCur=ym;
+  var got=null, orig=assemblePdf;
+  assemblePdf=function(streams,W,H){ got={streams:streams,W:W,H:H}; return new Uint8Array(0) };
+  try{ buildMonthPdf() } finally { assemblePdf=orig }
+  return got;
+};
 `;
 /* the very last })(); closes the app's outer function - putting the hook
    there means it runs on load, not after the page has finished waking up */
@@ -91,15 +103,47 @@ if (!month) {
   month = y + '-' + String(m).padStart(2, '0');
 }
 
-const b64 = await page.evaluate(ym => {
-  const bytes = window.__monthPdf(ym);
-  let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s);
-}, month);
+const parts = await page.evaluate(ym => window.__monthParts(ym), month);
+if (!parts || !parts.streams.length) { console.error('the page produced no pages'); process.exit(1) }
 
+/* Same object layout the page's own assemblePdf writes, with every content
+   stream deflated. Written as latin-1 so byte offsets and string offsets
+   stay the same number, which is what the xref table records. */
+function assemble(streams, W, H) {
+  const n = streams.length, objs = [];
+  const kids = []; for (let i = 0; i < n; i++) kids.push((3 + i) + ' 0 R');
+  const fontA = 3 + 2 * n, fontB = fontA + 1;
+  objs.push('<< /Type /Catalog /Pages 2 0 R >>');
+  objs.push('<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + n + ' >>');
+  for (let i = 0; i < n; i++) {
+    objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] '
+      + '/Resources << /Font << /F1 ' + fontA + ' 0 R /F2 ' + fontB + ' 0 R >> >> '
+      + '/Contents ' + (3 + n + i) + ' 0 R >>');
+  }
+  for (let i = 0; i < n; i++) {
+    const z = zlib.deflateSync(Buffer.from(streams[i], 'latin1'), { level: 9 });
+    objs.push('<< /Length ' + z.length + ' /Filter /FlateDecode >>\nstream\n'
+      + z.toString('latin1') + '\nendstream');
+  }
+  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+
+  let outStr = '%PDF-1.4\n';
+  const offsets = [];
+  objs.forEach((o, i) => { offsets.push(outStr.length); outStr += (i + 1) + ' 0 obj\n' + o + '\nendobj\n' });
+  const xref = outStr.length;
+  outStr += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n';
+  offsets.forEach(o => { outStr += ('0000000000' + o).slice(-10) + ' 00000 n \n' });
+  outStr += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
+  return Buffer.from(outStr, 'latin1');
+}
+
+const pdf = assemble(parts.streams, parts.W, parts.H);
 const out = arg('out', 'Shan Village - ' + month + ' hours and overtime.pdf');
-fs.writeFileSync(out, Buffer.from(b64, 'base64'));
-console.log(JSON.stringify({ month, out, bytes: fs.statSync(out).size, errors }));
+fs.writeFileSync(out, pdf);
+console.log(JSON.stringify({
+  month, out, pages: parts.streams.length, bytes: pdf.length,
+  base64Chars: Math.ceil(pdf.length / 3) * 4, errors
+}));
 
 await ctx.close(); await browser.close(); server.close();
