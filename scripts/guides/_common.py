@@ -19,6 +19,11 @@ SUNK   = RGBColor(0xF3, 0xEC, 0xDC)
 GREEN  = RGBColor(0x2F, 0x7D, 0x4F)
 
 DISP, BODY, MONO = "Georgia", "Calibri", "Consolas"
+
+# The two addresses the whole system hangs on. Every mention of either in the
+# decks is a real clickable hyperlink, so nobody has to retype them.
+APP    = "https://shan-schedule-crew.lovable.app"
+ROSTER = APP + "/team-roster"
 W, H = Inches(13.333), Inches(7.5)
 
 prs = Presentation()
@@ -65,8 +70,15 @@ def text(s, x, y, w, h, runs, align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP, spacin
             p.space_after = Pt(spacing)
         if isinstance(item, tuple):
             item = [item]
-        for t, sz, col, bold, font in item:
+        for spec in item:
+            t, sz, col, bold, font = spec[:5]
+            url = spec[5] if len(spec) > 5 else None
             r = p.add_run(); r.text = t
+            if url:
+                # Set the address first: PowerPoint would otherwise repaint the
+                # run in its own link colour and lose the palette.
+                r.hyperlink.address = url
+                r.font.underline = True
             r.font.size = Pt(sz); r.font.color.rgb = col
             r.font.bold = bold; r.font.name = font
     return tb
@@ -96,3 +108,30 @@ def foot(s, n):
          [(str(n), 9, FAINT, False, BODY)], align=PP_ALIGN.RIGHT)
 
 
+
+
+def links_slide(kicker, title, sub, rows, n):
+    """A closing page of tappable addresses: label, the link itself, one line of why.
+
+    The rows share a fixed band so a six-link page fits as well as a four-link one.
+    """
+    s = prs.slides.add_slide(BLANK)
+    header(s, kicker, title, sub)
+    top, bottom = 2.15, 6.58
+    pitch = min(1.02, (bottom - top) / len(rows))
+    h = Inches(pitch - 0.10)
+    for i, (label, url, note) in enumerate(rows):
+        y = Inches(top + i * pitch)
+        box(s, Inches(0.7), y, Inches(11.93), h, WHITE if i % 2 == 0 else SUNK, LINE)
+        rect(s, Inches(0.7), y, Pt(4.5), h, ORANGE if i == 0 else GOLD)
+        text(s, Inches(1.05), y, Inches(3.4), h,
+             [[(label, 13.5, INK, True, DISP)], [(note, 10.5, FAINT, False, BODY)]],
+             anchor=MSO_ANCHOR.MIDDLE, spacing=2)
+        text(s, Inches(4.6), y, Inches(7.8), h,
+             [(url.replace("https://", ""), 12.5, ORANGE, True, MONO, url)],
+             anchor=MSO_ANCHOR.MIDDLE)
+    text(s, Inches(0.7), Inches(top + len(rows) * pitch + 0.06), Inches(11.9), Inches(0.28),
+         [("Every address above is clickable in this file \u2014 tap it, or type it into any browser.",
+           10.5, MUTED, False, BODY)])
+    foot(s, n)
+    return s

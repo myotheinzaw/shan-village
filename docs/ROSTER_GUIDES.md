@@ -12,6 +12,35 @@ one generator per deck, rebuilt from source rather than edited slide by slide.
 `_common.py` holds the shared palette, slide helpers and the 16:9 setup. Each generator
 starts with `exec(open('_common.py').read())`, so a colour or layout change is made once.
 
+## Links
+
+Every address in the three decks is a real clickable hyperlink, not just text to retype:
+24 of them across the three files. `_common.py` defines the two that matter —
+
+```python
+APP    = "https://shan-schedule-crew.lovable.app"
+ROSTER = APP + "/team-roster"
+```
+
+— and `text()` takes an optional sixth element on a run tuple, the URL:
+
+```python
+[("shan-schedule-crew.lovable.app/team-roster", 12.5, ORANGE, True, MONO, ROSTER)]
+```
+
+The address is set before the colour, otherwise PowerPoint repaints the run in its own
+link blue and the palette is lost. Each deck also closes on a `links_slide()` page of
+tappable addresses, chosen for who is reading it:
+
+| Deck | Links on the closing page |
+|---|---|
+| Sign-in | sign in · team roster · roster builder · approvals · users & roles · audit log |
+| Staff | team roster · sign in · my roster · requests |
+| Roster manager | roster builder · team roster · approvals · monthly · staff · shifts |
+
+The paths are taken from `buildNav()` in `src/components/AppShell.tsx`, so a link that
+needs a permission still lands on the right screen for the person who has it.
+
 ## Building them
 
 ```bash
@@ -61,6 +90,10 @@ API call, not only in the interface.
 `app_settings.manager_can_publish` exists but nothing reads it. Publishing is governed
 entirely by the `roster.publish` permission. It was set to `true` so it no longer
 contradicts reality, but it is dead weight and should be dropped.
+
+The sign-in deck's closing checklist used to tell the owner to "decide whether managers
+may publish" in Settings. That row was wrong for the same reason and now reads that both
+managers already have publish and unlock, granted as role permissions.
 
 ## What the decks say, in one line each
 

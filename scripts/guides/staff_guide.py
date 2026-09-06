@@ -46,8 +46,8 @@ header(s, "No password needed", "The team roster link",
 box(s, Inches(0.7), Inches(2.2), Inches(6.1), Inches(1.55), DARK, DARK)
 text(s, Inches(1.05), Inches(2.5), Inches(5.4), Inches(1.0),
      [[("Open this", 11, GOLD, True, BODY)],
-      [("shan-schedule-crew", 17, CREAM, True, MONO)],
-      [(".lovable.app/team-roster", 17, CREAM, True, MONO)]], spacing=5)
+      [("shan-schedule-crew", 17, CREAM, True, MONO, ROSTER)],
+      [(".lovable.app/team-roster", 17, CREAM, True, MONO, ROSTER)]], spacing=5)
 box(s, Inches(0.7), Inches(3.95), Inches(6.1), Inches(2.65), WHITE, LINE)
 text(s, Inches(1.05), Inches(4.22), Inches(5.4), Inches(0.4),
      [("What you will see", 15, INK, True, DISP)])
@@ -205,6 +205,14 @@ for i, (t, d) in enumerate(notes):
          [[(t, 13, INK, True, BODY)], [(d, 11.5, MUTED, False, BODY)]], spacing=2)
     y += Inches(0.86)
 foot(s, 7)
+
+# ---------------------------------------------------------------- 8 links
+links_slide("Keep this page", "The two addresses you need",
+            "Bookmark them, or add them to your phone's home screen.",
+            [("The team roster", ROSTER, "No login. Everybody's shifts"),
+             ("Sign in", APP, "Your own account"),
+             ("My roster", APP + "/roster", "Your shifts and your hours"),
+             ("Requests", APP + "/requests", "Ask for leave, a change or a swap")], 8)
 
 out = os.environ["SV_OUT"]
 prs.save(out)

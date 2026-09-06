@@ -1,8 +1,4 @@
 import os
-from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 # Passwords come from the environment, never from this file.
 def pw(k):
@@ -11,97 +7,7 @@ def pw(k):
         raise SystemExit(f"missing env {k}")
     return v
 
-SAND   = RGBColor(0xFA, 0xF5, 0xEA)
-INK    = RGBColor(0x24, 0x1C, 0x15)
-MUTED  = RGBColor(0x75, 0x6B, 0x58)
-FAINT  = RGBColor(0x9C, 0x91, 0x7A)
-ORANGE = RGBColor(0xC1, 0x50, 0x1F)
-DEEP   = RGBColor(0x9C, 0x2B, 0x1F)
-DARK   = RGBColor(0x17, 0x13, 0x10)
-GOLD   = RGBColor(0xE8, 0xC7, 0x7A)
-CREAM  = RGBColor(0xF7, 0xEF, 0xDD)
-WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
-LINE   = RGBColor(0xE3, 0xD7, 0xBE)
-SUNK   = RGBColor(0xF3, 0xEC, 0xDC)
-GREEN  = RGBColor(0x2F, 0x7D, 0x4F)
-
-DISP, BODY, MONO = "Georgia", "Calibri", "Consolas"
-W, H = Inches(13.333), Inches(7.5)
-
-prs = Presentation()
-prs.slide_width, prs.slide_height = W, H
-BLANK = prs.slide_layouts[6]
-
-
-def box(s, x, y, w, h, fill=None, line=None, lw=1.0):
-    from pptx.enum.shapes import MSO_SHAPE
-    sh = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h)
-    sh.adjustments[0] = 0.06
-    if fill is None:
-        sh.fill.background()
-    else:
-        sh.fill.solid(); sh.fill.fore_color.rgb = fill
-    if line is None:
-        sh.line.fill.background()
-    else:
-        sh.line.color.rgb = line; sh.line.width = Pt(lw)
-    sh.shadow.inherit = False
-    return sh
-
-
-def rect(s, x, y, w, h, fill):
-    from pptx.enum.shapes import MSO_SHAPE
-    sh = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, w, h)
-    sh.fill.solid(); sh.fill.fore_color.rgb = fill
-    sh.line.fill.background(); sh.shadow.inherit = False
-    return sh
-
-
-def text(s, x, y, w, h, runs, align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP, spacing=None):
-    tb = s.shapes.add_textbox(x, y, w, h)
-    tf = tb.text_frame
-    tf.word_wrap = True
-    tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
-    tf.vertical_anchor = anchor
-    first = True
-    for item in runs:
-        p = tf.paragraphs[0] if first else tf.add_paragraph()
-        first = False
-        p.alignment = align
-        if spacing:
-            p.space_after = Pt(spacing)
-        if isinstance(item, tuple):
-            item = [item]
-        for t, sz, col, bold, font in item:
-            r = p.add_run(); r.text = t
-            r.font.size = Pt(sz); r.font.color.rgb = col
-            r.font.bold = bold; r.font.name = font
-    return tb
-
-
-def bg(s):
-    rect(s, 0, 0, W, H, SAND)
-
-
-def header(s, kicker, title, sub=None):
-    bg(s)
-    rect(s, 0, 0, W, Inches(1.35), DARK)
-    rect(s, 0, Inches(1.35), W, Pt(3), ORANGE)
-    text(s, Inches(0.7), Inches(0.3), Inches(11.9), Inches(0.28),
-         [(kicker.upper(), 10.5, GOLD, True, BODY)])
-    text(s, Inches(0.7), Inches(0.6), Inches(11.9), Inches(0.55),
-         [(title, 27, CREAM, True, DISP)])
-    if sub:
-        text(s, Inches(0.7), Inches(1.62), Inches(11.9), Inches(0.3),
-             [(sub, 13, MUTED, False, BODY)])
-
-
-def foot(s, n):
-    text(s, Inches(0.7), Inches(6.95), Inches(8), Inches(0.25),
-         [("Shan Village · Operations Management System", 9, FAINT, False, BODY)])
-    text(s, Inches(11.2), Inches(6.95), Inches(1.43), Inches(0.25),
-         [(str(n), 9, FAINT, False, BODY)], align=PP_ALIGN.RIGHT)
-
+exec(open('_common.py').read())
 
 # ---------------------------------------------------------------- 1 title
 s = prs.slides.add_slide(BLANK)
@@ -118,7 +24,7 @@ text(s, Inches(1.0), Inches(2.95), Inches(9.5), Inches(0.9),
 box(s, Inches(1.0), Inches(5.05), Inches(5.4), Inches(1.15), WHITE, LINE)
 text(s, Inches(1.3), Inches(5.28), Inches(4.9), Inches(0.7),
      [[("Open the app at", 11, MUTED, False, BODY)],
-      [("shan-schedule-crew.lovable.app", 15.5, ORANGE, True, MONO)]], spacing=4)
+      [("shan-schedule-crew.lovable.app", 15.5, ORANGE, True, MONO, APP)]], spacing=4)
 box(s, Inches(6.7), Inches(5.05), Inches(5.6), Inches(1.15), SUNK, LINE)
 text(s, Inches(7.0), Inches(5.28), Inches(5.0), Inches(0.7),
      [[("Keep this deck private", 11, MUTED, False, BODY)],
@@ -132,8 +38,8 @@ header(s, "Step 1", "Where to sign in", "The same address for everyone — owner
 box(s, Inches(0.7), Inches(2.2), Inches(5.9), Inches(2.0), DARK, DARK)
 text(s, Inches(1.05), Inches(2.5), Inches(5.2), Inches(1.5),
      [[("Web address", 11, GOLD, True, BODY)],
-      [("shan-schedule-crew", 19, CREAM, True, MONO)],
-      [(".lovable.app", 19, CREAM, True, MONO)],
+      [("shan-schedule-crew", 19, CREAM, True, MONO, APP)],
+      [(".lovable.app", 19, CREAM, True, MONO, APP)],
       [("Works in any browser, on a phone or a laptop.", 11.5, RGBColor(0xB8, 0xAC, 0x93), False, BODY)]], spacing=6)
 box(s, Inches(0.7), Inches(4.4), Inches(5.9), Inches(2.2), WHITE, LINE)
 text(s, Inches(1.05), Inches(4.68), Inches(5.2), Inches(1.7),
@@ -272,7 +178,7 @@ text(s, Inches(1.05), Inches(2.45), Inches(5.2), Inches(0.75),
       [("No login, no app, no password.", 11.5, FAINT, False, BODY)]], spacing=4)
 box(s, Inches(1.05), Inches(3.32), Inches(5.2), Inches(0.58), SUNK, LINE)
 text(s, Inches(1.3), Inches(3.45), Inches(4.9), Inches(0.35),
-     [("…lovable.app/team-roster", 13, ORANGE, True, MONO)])
+     [("shan-schedule-crew.lovable.app/team-roster", 11.5, ORANGE, True, MONO, ROSTER)])
 yy = Inches(4.15)
 for t in ["Three tabs — last week, this week, next week",
           "Everyone's shifts, all outlets: a noticeboard",
@@ -403,7 +309,7 @@ for i, (title, note) in enumerate(outs):
     y += Inches(1.12)
 text(s, Inches(0.7), Inches(6.6), Inches(11.9), Inches(0.3),
      [[("The public link is ", 11, MUTED, False, BODY),
-       ("shan-schedule-crew.lovable.app/team-roster", 11, INK, True, MONO),
+       ("shan-schedule-crew.lovable.app/team-roster", 11, INK, True, MONO, ROSTER),
        ("  — it never shows a draft, and never shows pay or contact details.", 11, MUTED, False, BODY)]])
 foot(s, 11)
 
@@ -412,7 +318,7 @@ s = prs.slides.add_slide(BLANK)
 header(s, "Before you hand these out", "Five things worth doing this week")
 todo = [("Print or forward one row at a time", "Send each person only their own line — not the whole deck."),
         ("Watch the eight temporary passwords disappear", "Administration → Users & roles shows who has signed in."),
-        ("Decide whether managers may publish", "Administration → Settings. Off means only an owner releases a week."),
+        ("Remember both managers can publish and unlock", "Granted 6 Sep 2026. Neither can be undone from Settings — it is a role permission."),
         ("Set the leave entitlement for each person", "Still empty — the app will not invent a number."),
         ("Keep the audit log in mind", "Every change is recorded and cannot be edited or deleted, by anyone.")]
 y = Inches(2.05)
@@ -429,6 +335,16 @@ text(s, Inches(1.0), Inches(6.24), Inches(11.3), Inches(0.4),
      [[("This deck is the only place these passwords are written down. ", 12, DEEP, True, BODY),
        ("Once everyone has set their own, it is safe to delete it.", 12, MUTED, False, BODY)]])
 foot(s, 12)
+
+# ---------------------------------------------------------------- 13 links
+links_slide("Keep this page", "Every address in one place",
+            "The first two are all most people ever need.",
+            [("Sign in", APP, "Everyone — owner, managers and staff"),
+             ("Weekly roster", ROSTER, "Public. No login. Share this one"),
+             ("Roster builder", APP + "/roster/builder", "Build, publish, lock a week"),
+             ("Approvals", APP + "/approvals", "Leave and shift requests waiting"),
+             ("Users & roles", APP + "/admin/users", "Add a person, reset a password"),
+             ("Audit log", APP + "/admin/audit", "Every change, permanent")], 13)
 
 out = os.environ["SV_OUT"]
 prs.save(out)

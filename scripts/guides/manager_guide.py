@@ -127,7 +127,7 @@ header(s, "Step 3", "Publishing updates the link by itself",
 box(s, Inches(0.7), Inches(2.15), Inches(11.93), Inches(1.55), DARK, DARK)
 text(s, Inches(1.05), Inches(2.4), Inches(11.2), Inches(1.1),
      [[("The link never changes: ", 13, RGBColor(0xC9, 0xBB, 0x9C), False, BODY),
-       ("shan-schedule-crew.lovable.app/team-roster", 14.5, GOLD, True, MONO)],
+       ("shan-schedule-crew.lovable.app/team-roster", 14.5, GOLD, True, MONO, ROSTER)],
       [("It is not a picture and not a file. Every time somebody opens it, it reads the roster "
         "out of the system as it stands at that moment. Publish a week and it is there — no new "
         "link, no re-sending, no re-uploading.", 12, RGBColor(0xC9, 0xBB, 0x9C), False, BODY)]], spacing=6)
@@ -199,6 +199,16 @@ for i, (t, d) in enumerate(notes):
          [[(t, 13, INK, True, BODY)], [(d, 11.5, MUTED, False, BODY)]], spacing=2)
     y += Inches(0.86)
 foot(s, 7)
+
+# ---------------------------------------------------------------- 8 links
+links_slide("Keep this page", "Every address you use", 
+            "The roster link is the only one you ever send to the team.",
+            [("Roster builder", APP + "/roster/builder", "Fill the grid, publish, lock"),
+             ("Weekly roster", ROSTER, "Public. Send this to the team"),
+             ("Approvals", APP + "/approvals", "Leave and shift requests waiting"),
+             ("Monthly view", APP + "/roster/monthly", "One person, a whole month"),
+             ("Staff", APP + "/staff", "People, positions and outlets"),
+             ("Shifts", APP + "/shifts", "The shift templates you pick from")], 8)
 
 out = os.environ["SV_OUT"]
 prs.save(out)
