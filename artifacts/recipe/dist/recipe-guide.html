@@ -202,7 +202,6 @@
    nothing should go in this file that couldn't be safely seen by anyone
    with the link. Change PASSWORD below any time and re-share the file. */
 const PASSWORD = 'ShanVillage2026';
-const UNLOCK_KEY = 'sv_unlocked_v1';
 function showApp() {
   document.getElementById('lock-overlay').hidden = true;
   document.getElementById('app-header').hidden = false;
@@ -212,7 +211,6 @@ function tryUnlock() {
   const input = document.getElementById('lock-password');
   const err = document.getElementById('lock-error');
   if (input.value === PASSWORD) {
-    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
     err.textContent = '';
     showApp();
   } else {
@@ -223,7 +221,6 @@ function tryUnlock() {
 }
 (function initLock() {
   let unlocked = false;
-  try { unlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) {}
   if (unlocked) {
     showApp();
   } else {
