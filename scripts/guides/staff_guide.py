@@ -36,7 +36,9 @@ box(s, Inches(6.7), Inches(4.85), Inches(5.6), Inches(1.25), SUNK, LINE)
 text(s, Inches(7.0), Inches(5.1), Inches(5.0), Inches(0.8),
      [[("Need leave, or your own hours?", 11.5, MUTED, False, BODY)],
       [("Sign in with your own account.", 15, INK, True, BODY)]], spacing=4)
-text(s, Inches(1.0), Inches(6.45), Inches(9), Inches(0.3),
+text(s, Inches(1.0), Inches(6.2), Inches(11.3), Inches(0.3),
+     [("Updated 27 September 2026 · checked against the live app", 10, FAINT, False, BODY)])
+text(s, Inches(1.0), Inches(6.55), Inches(9), Inches(0.3),
      [("Shan Village · all times shown are Dubai time", 10, FAINT, False, BODY)])
 
 # ---------------------------------------------------------------- 2 the link
@@ -79,7 +81,7 @@ for n, t, d in [("1", "Open shan-schedule-crew.lovable.app",
                 ("2", "Type the email and password you were given",
                  "The password is temporary — other people have seen it."),
                 ("3", "The app asks you to make your own password",
-                 "At least 8 letters or numbers. Type it twice, press “Set my password”."),
+                 "At least 8 characters. Type it twice, press “Set my password”."),
                 ("4", "That is your password from now on",
                  "Nobody else knows it — not even the office. Do not share it.")]:
     step(s, Inches(0.7), y, Inches(7.5), n, t, d)
@@ -98,7 +100,7 @@ foot(s, 3)
 # ---------------------------------------------------------------- 4 my roster
 s = prs.slides.add_slide(BLANK)
 header(s, "Inside your account", "My roster — your shifts only",
-       "Press Roster at the bottom of the screen.")
+       "Press Roster at the bottom of the screen. Your tabs: Home · Roster · Wastage · Requests · Recipes · Profile.")
 cards = [("This week", ["Every day, Monday to Sunday",
                         "Your shift times, or OFF, or Leave",
                         "Hours for the whole week at the bottom"]),
@@ -128,9 +130,9 @@ s = prs.slides.add_slide(BLANK)
 header(s, "Inside your account", "Asking for leave",
        "Press Requests, then “New request”.")
 y = Inches(2.2)
-for n, t, d in [("1", "Choose Leave", "The other two buttons are for changing or swapping a shift."),
-                ("2", "Choose the type of leave", "Annual, sick, unpaid — whatever the office has set up."),
-                ("3", "Pick the first day and the last day", "One day off? Put the same date twice."),
+for n, t, d in [("1", "Choose “Take leave”", "The other button, “Get paid instead”, is on the next page."),
+                ("2", "Choose the type of leave", "Annual, sick, unpaid or public holiday. Sick leave needs a photo of the doctor's note."),
+                ("3", "Pick the first day and the last day", "One day off? Pick the date once — the last day fills itself."),
                 ("4", "Write the reason", "Not compulsory, but it helps your manager say yes quickly."),
                 ("5", "Press Submit", "“Save draft” keeps it without sending. Submit sends it.")]:
     step(s, Inches(0.7), y, Inches(7.5), n, t, d, h=0.82)
@@ -138,44 +140,45 @@ for n, t, d in [("1", "Choose Leave", "The other two buttons are for changing or
 box(s, Inches(8.6), Inches(2.2), Inches(4.03), Inches(2.35), WHITE, LINE)
 text(s, Inches(8.9), Inches(2.45), Inches(3.45), Inches(1.9),
      [[("Before you press Submit", 14, INK, True, DISP)],
-      [("The app shows your days left, and warns you if you are already rostered to work "
-        "on those days.", 11.5, MUTED, False, BODY)]], spacing=6)
+      [("The app shows your days left, stops a request that is more than your balance, and "
+        "warns you if you are already rostered to work on those days. Still in probation? "
+        "Annual leave and holidays open once it ends.", 11.5, MUTED, False, BODY)]], spacing=6)
 box(s, Inches(8.6), Inches(4.75), Inches(4.03), Inches(1.85), SUNK, LINE)
 text(s, Inches(8.9), Inches(5.0), Inches(3.45), Inches(1.4),
      [[("Then what?", 14, INK, True, DISP)],
-      [("It appears in My requests. When the manager decides, the answer and their comment "
-        "appear there too.", 11.5, MUTED, False, BODY)]], spacing=6)
+      [("It appears in My requests. The manager checks it, the owner approves it, and the "
+        "answer appears there. Approved leave goes onto the roster by itself.", 11.5, MUTED, False, BODY)]], spacing=6)
 foot(s, 5)
 
-# ---------------------------------------------------------------- 6 change or swap
+# ---------------------------------------------------------------- 6 paid instead of leave
 s = prs.slides.add_slide(BLANK)
-header(s, "Inside your account", "Changing or swapping a shift",
+header(s, "Inside your account", "Getting paid instead of leave",
        "Same place — Requests, then “New request”.")
 box(s, Inches(0.7), Inches(2.2), Inches(5.9), Inches(3.1), WHITE, LINE)
 rect(s, Inches(0.7), Inches(2.2), Inches(5.9), Pt(5), ORANGE)
 text(s, Inches(1.05), Inches(2.5), Inches(5.2), Inches(0.4),
-     [("Shift change", 17, INK, True, DISP)])
+     [("Get paid instead", 17, INK, True, DISP)])
 text(s, Inches(1.05), Inches(3.0), Inches(5.2), Inches(0.35),
-     [("When you want different times, or the day off.", 12, MUTED, False, BODY)])
+     [("When you would rather work and be paid for annual leave.", 12, MUTED, False, BODY)])
 bullet(s, Inches(1.05), Inches(3.5), Inches(5.2),
-       ["Pick the date",
-        "Choose “Different times” or “Day off”",
-        "If different times, type start and end",
-        "Add the reason, then Submit"], ORANGE, 12, 0.42)
+       ["Press “Get paid instead”",
+        "Type how many days",
+        "Add a reason if you want, then Submit",
+        "Your shifts stay exactly as they are"], ORANGE, 12, 0.42)
 box(s, Inches(6.9), Inches(2.2), Inches(5.73), Inches(3.1), WHITE, LINE)
 rect(s, Inches(6.9), Inches(2.2), Inches(5.73), Pt(5), GOLD)
 text(s, Inches(7.25), Inches(2.5), Inches(5.1), Inches(0.4),
-     [("Swap with a colleague", 17, INK, True, DISP)])
+     [("Want a different shift?", 17, INK, True, DISP)])
 text(s, Inches(7.25), Inches(3.0), Inches(5.1), Inches(0.35),
-     [("When you and a workmate want to trade days.", 12, MUTED, False, BODY)])
+     [("Shift changes and swaps are no longer asked for in the app.", 12, MUTED, False, BODY)])
 bullet(s, Inches(7.25), Inches(3.5), Inches(5.1),
-       ["Pick your shift date",
-        "Choose the colleague from the list",
-        "Pick their shift date",
-        "Add the reason, then Submit"], GOLD, 12, 0.42)
+       ["Talk to your roster manager",
+        "They change the roster themselves",
+        "You see the new shift in My roster",
+        "…and on the team link"], GOLD, 12, 0.42)
 box(s, Inches(0.7), Inches(5.5), Inches(11.93), Inches(1.1), SUNK, DEEP, 1.5)
 text(s, Inches(1.05), Inches(5.72), Inches(11.3), Inches(0.7),
-     [[("Nothing changes until a manager approves it.  ", 12.5, DEEP, True, BODY)],
+     [[("Nothing changes until it is approved.  ", 12.5, DEEP, True, BODY)],
       [("Sending a request does not move your shift. Keep working the roster as published "
         "until you see the answer in My requests.", 12, MUTED, False, BODY)]], spacing=4)
 foot(s, 6)
@@ -192,7 +195,7 @@ notes = [("The link is for looking. Your login is for asking.",
          ("Your password is yours alone.",
           "Change it the first time you sign in and tell nobody."),
          ("A request is a question, not a decision.",
-          "Work the roster until a manager answers."),
+          "Work the roster until the answer says Approved."),
          ("Ask the office if something looks wrong.",
           "A wrong shift is fixed in the system, not in the WhatsApp group.")]
 y = Inches(2.05)
@@ -212,7 +215,7 @@ links_slide("Keep this page", "The two addresses you need",
             [("The team roster", ROSTER, "No login. Everybody's shifts"),
              ("Sign in", APP, "Your own account"),
              ("My roster", APP + "/roster", "Your shifts and your hours"),
-             ("Requests", APP + "/requests", "Ask for leave, a change or a swap")], 8)
+             ("Requests", APP + "/requests", "Ask for leave, or pay instead")], 8)
 
 out = os.environ["SV_OUT"]
 prs.save(out)

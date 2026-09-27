@@ -31,33 +31,34 @@ text(s, Inches(1.0), Inches(2.9), Inches(9.5), Inches(0.9),
        "and what happens to the roster link when you do.", 15, RGBColor(0xC9, 0xBB, 0x9C), False, BODY)])
 box(s, Inches(1.0), Inches(4.85), Inches(11.3), Inches(1.25), WHITE, LINE)
 text(s, Inches(1.35), Inches(5.1), Inches(10.6), Inches(0.8),
-     [[("You can now publish and unlock.", 15.5, ORANGE, True, BODY)],
-      [("Granted 6 September 2026. You no longer wait for an owner to release a week.",
+     [[("You can both publish and lock a week.", 15.5, ORANGE, True, BODY)],
+      [("Hla Kyawt Khing can also unlock. Phyu Sin Maung's unlock was withdrawn on 12 September 2026.",
         12, MUTED, False, BODY)]], spacing=4)
-text(s, Inches(1.0), Inches(6.45), Inches(9), Inches(0.3),
-     [("Your own email and password are on the sign-in card you were given", 10, FAINT, False, BODY)])
+text(s, Inches(1.0), Inches(6.45), Inches(11.3), Inches(0.3),
+     [("Updated 27 Sep 2026 · your own email and password are on the sign-in card you were given",
+       10, FAINT, False, BODY)])
 
 # ---------------------------------------------------------------- 2 what you can do
 s = prs.slides.add_slide(BLANK)
 header(s, "Your access", "What you can do — and what you cannot",
-       "Both of you hold the same rights over the roster.")
+       "You share the grid and Publish. Hla Kyawt Khing has a few more rights.")
 box(s, Inches(0.7), Inches(2.2), Inches(5.9), Inches(4.4), WHITE, LINE)
 rect(s, Inches(0.7), Inches(2.2), Inches(5.9), Pt(5), GREEN)
 text(s, Inches(1.05), Inches(2.5), Inches(5.2), Inches(0.4),
      [("Yours to do", 17, INK, True, DISP)])
 bullet(s, Inches(1.05), Inches(3.05), Inches(5.2),
        ["Create a week and fill every cell",
-        "Copy last week, clear a week, delete a week",
+        "Copy last week, or clear a single cell",
         "Publish — release it to the whole team",
         "Lock a week so it stops changing",
-        "Unlock a locked week and edit it again",
-        "Approve or refuse leave and shift requests",
-        "Add and edit staff, shifts and positions",
-        "Read the reports and export them"], GREEN, 12, 0.44)
+        "Edit the shift templates",
+        "Hla only: unlock a week, and edit a locked one",
+        "Hla only: review leave requests, or return them",
+        "Hla only: edit staff, read and export reports"], GREEN, 12, 0.44)
 box(s, Inches(7.0), Inches(2.2), Inches(5.63), Inches(2.1), SUNK, LINE)
 text(s, Inches(7.35), Inches(2.48), Inches(5.0), Inches(1.6),
      [[("Only the owner", 15.5, INK, True, DISP)],
-      [("Users and roles · system settings · the audit log · deciding who may publish.",
+      [("Users and roles · settings · audit log · final approval of leave · deleting a week · finance.",
         12, MUTED, False, BODY)]], spacing=6)
 box(s, Inches(7.0), Inches(4.5), Inches(5.63), Inches(2.1), WHITE, DEEP, 1.5)
 text(s, Inches(7.35), Inches(4.78), Inches(5.0), Inches(1.6),
@@ -69,13 +70,13 @@ foot(s, 2)
 
 # ---------------------------------------------------------------- 3 build the week
 s = prs.slides.add_slide(BLANK)
-header(s, "Step 1", "Filling the grid", "Roster in the left menu. Pick the outlet, then the week.")
+header(s, "Step 1", "Filling the grid", "Open the Roster group in the left menu, then Roster. On a phone, the Roster tab.")
 y = Inches(2.15)
-for n, t, d in [("1", "Choose the outlet", "The pills at the top: Mall, Night Market, Mangoon, Good Luck."),
-                ("2", "Choose the week", "Arrows either side of the date box move a week at a time."),
+for n, t, d in [("1", "Check the outlet", "One pill at the top: Al Ghurair Center. The other outlets are hidden."),
+                ("2", "Choose the week", "It opens on the newest week. The arrows either side of the date move a week."),
                 ("3", "Create it", "“Create empty week”, or “Create by copying last week”."),
-                ("4", "Tap a cell to set the shift", "Pick a shift template, or type start and end times. Or mark OFF, leave, holiday, trial."),
-                ("5", "“Copy last week” fills everything", "Then change only what differs. “Clear week” empties it again.")]:
+                ("4", "Tap a cell to set the shift", "Pick a template or type times, or mark Off or Unpaid leave. Paid leave comes from approved requests."),
+                ("5", "“Copy last week” copies Work and Off days", "Then change only what differs. “Clear cell” empties one day.")]:
     step(s, Inches(0.7), y, Inches(7.4), n, t, d)
     y += Inches(0.94)
 box(s, Inches(8.5), Inches(2.15), Inches(4.13), Inches(2.25), DARK, DARK)
@@ -96,7 +97,7 @@ header(s, "Step 2", "Draft → Published → Locked",
        "The team only ever sees the middle two.")
 states = [("DRAFT", "Nobody sees it", "Yours to build. Invisible to staff and invisible on the link.", MUTED),
           ("PUBLISHED", "The team sees it", "On their phones and on the link. You can still edit it.", ORANGE),
-          ("LOCKED", "Frozen", "No more edits. Use it once payroll has read the week.", DARK)]
+          ("LOCKED", "Frozen", "Frozen for Phyu; Hla and the owners can still edit it. Lock once payroll has read the week.", DARK)]
 x = Inches(0.7)
 for name, head_, note, accent in states:
     box(s, x, Inches(2.2), Inches(3.87), Inches(2.05), WHITE, LINE)
@@ -108,10 +109,10 @@ for name, head_, note, accent in states:
     x += Inches(4.03)
 box(s, Inches(0.7), Inches(4.45), Inches(11.93), Inches(2.15), SUNK, LINE)
 text(s, Inches(1.05), Inches(4.7), Inches(11.2), Inches(0.35),
-     [("The four buttons, top right of the roster page", 15, INK, True, DISP)])
+     [("The buttons, top right of the roster page — only the one that fits the week shows", 15, INK, True, DISP)])
 moves = [("Publish", "Shown while the week is a draft. Add a note if you want — “Eid week, extra cover Friday”."),
-         ("Lock", "Appears once it is published. Freezes the week."),
-         ("Unlock", "Reopens a locked week so you can edit it. You both have this now — use it sparingly."),
+         ("Lock", "Appears once it is published. Freezes the week. You both have this."),
+         ("Unlock", "Hla only. Returns a locked week to Published so it can be edited. Use it sparingly."),
          ("History", "Who created, edited, published, locked or unlocked this week, and when.")]
 y = Inches(5.2)
 for label, note in moves:
@@ -133,7 +134,7 @@ text(s, Inches(1.05), Inches(2.4), Inches(11.2), Inches(1.1),
         "link, no re-sending, no re-uploading.", 12, RGBColor(0xC9, 0xBB, 0x9C), False, BODY)]], spacing=6)
 flow = [("You press Publish", "The week changes from Draft to Published."),
         ("The link picks it up", "Anyone opening it now sees the new week."),
-        ("Staff see it in their app", "Under “My roster”, on their own line only.")]
+        ("Staff see it in their app", "Under Roster, on their own line only.")]
 x = Inches(0.7)
 for i, (t, d) in enumerate(flow):
     box(s, x, Inches(3.95), Inches(3.6), Inches(1.5), WHITE, LINE)
@@ -148,17 +149,17 @@ box(s, Inches(0.7), Inches(5.65), Inches(11.93), Inches(1.0), WHITE, DEEP, 1.5)
 text(s, Inches(1.05), Inches(5.83), Inches(11.3), Inches(0.7),
      [[("One limit worth knowing.  ", 12.5, DEEP, True, BODY),
        ("The link only ever shows three weeks — last, this and next. Publish a week further "
-        "ahead than that and it is real, staff can see it in their own app, but it will not appear "
+        "ahead than that and it is real, staff can see it in the Month tab of their app, but it will not appear "
         "on the link until it comes into range.", 12, MUTED, False, BODY)]])
 foot(s, 5)
 
 # ---------------------------------------------------------------- 6 sharing
 s = prs.slides.add_slide(BLANK)
-header(s, "Step 4", "Getting the week to the team", "Four buttons, top right.")
+header(s, "Step 4", "Getting the week to the team", "From the roster page and the Roster menu.")
 outs = [("Copy roster link", "Copies the link to your clipboard. Paste it in the WhatsApp group — once is enough, forever."),
-        ("Print", "A clean sheet for the noticeboard in the kitchen."),
-        ("CSV", "The week as a spreadsheet: one row per person, with hours and overtime."),
-        ("Approvals", "Leave and shift requests waiting on you. Approve, refuse, or send back with a comment.")]
+        ("Monthly (Hla)", "The whole month for everyone, with a CSV download: hours, overtime and days off."),
+        ("Reports (Hla)", "The roster reports, with export to a spreadsheet."),
+        ("Approvals (Hla)", "Mark a leave request reviewed, or return it with a comment. The owner gives the final yes.")]
 y = Inches(2.2)
 for i, (title, note) in enumerate(outs):
     box(s, Inches(0.7), y, Inches(11.93), Inches(0.98), WHITE, LINE)
@@ -170,7 +171,7 @@ for i, (title, note) in enumerate(outs):
     y += Inches(1.1)
 box(s, Inches(0.7), Inches(6.65), Inches(11.93), Inches(0.0), None, None)
 text(s, Inches(0.7), Inches(6.75), Inches(11.9), Inches(0.3),
-     [[("The link shows names, positions and shift times only. ", 11, INK, True, BODY),
+     [[("The link shows first names with an initial, positions and shift times only. ", 11, INK, True, BODY),
        ("No pay, no phone numbers, no addresses.", 11, MUTED, False, BODY)]])
 foot(s, 6)
 
@@ -183,10 +184,10 @@ notes = [("Publish early in the week before.",
           "One line — “Eid week, extra cover Friday” — saves ten questions."),
          ("Lock the week once payroll has read it.",
           "It stops a quiet edit changing a number somebody has already paid on."),
-         ("Unlock is yours now — leave a trail.",
-          "If you reopen a locked week, say why in the publish note when you republish."),
+         ("Unlock only when you must (Hla).",
+          "Unlocking puts the week straight back to Published — tell the team what changed."),
          ("Clear the red review marks.",
-          "Imported rows with a red corner need a manager's eye. Open the cell and save it."),
+          "Cells with a red ring need a check. Open one and Save, or “Keep as is, mark reviewed”."),
          ("Watch the red headcount.",
           "Fewer than three people on a day is flagged for a reason.")]
 y = Inches(2.05)
@@ -205,9 +206,9 @@ links_slide("Keep this page", "Every address you use",
             "The roster link is the only one you ever send to the team.",
             [("Roster builder", APP + "/roster/builder", "Fill the grid, publish, lock"),
              ("Weekly roster", ROSTER, "Public. Send this to the team"),
-             ("Approvals", APP + "/approvals", "Leave and shift requests waiting"),
-             ("Monthly view", APP + "/roster/monthly", "One person, a whole month"),
-             ("Staff", APP + "/staff", "People, positions and outlets"),
+             ("Approvals (Hla)", APP + "/approvals", "Leave requests to review"),
+             ("Monthly view (Hla)", APP + "/roster/monthly", "The whole month, with CSV"),
+             ("Staff (Hla)", APP + "/staff", "People and their details"),
              ("Shifts", APP + "/shifts", "The shift templates you pick from")], 8)
 
 out = os.environ["SV_OUT"]

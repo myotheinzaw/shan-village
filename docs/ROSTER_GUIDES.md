@@ -70,20 +70,34 @@ same rule for consistency with `GUIDES.md`.
 
 ## Who can do what, as built into the deck text
 
-Verified against the database on 6 September 2026, not assumed from the UI:
+Re-verified against the live app and database on 27 September 2026:
 
-| | Amend the roster | Publish | Unlock |
-|---|---|---|---|
-| Owners (`admin` role) | yes | yes | yes |
-| Hla Kyawt Khing (`roster_manager`) | yes | yes | yes |
-| Phyu Sin Maung (`chef`) | yes | yes | yes |
-| The five staff | **no** | **no** | **no** |
+| | Amend the roster | Publish / lock | Unlock | Leave requests |
+|---|---|---|---|---|
+| Owners (`admin` role) | yes | yes | yes | final approve / reject |
+| Hla Kyawt Khing (`roster_manager`) | yes | yes | yes | mark reviewed / return |
+| Phyu Sin Maung (`chef`) | yes | yes | **no** (withdrawn 12 Sep) | no access |
+| Staff | **no** | **no** | **no** | ask only |
 
-`roster.publish` and `roster.unlock` were granted to the `roster_manager` and `chef` roles
-on 6 September 2026 at the owner's instruction. Staff writes are refused by row-level
-security on `roster_assignments` — every INSERT, UPDATE and DELETE is gated on
-`has_permission(auth.uid(), 'roster.edit')` — so the block holds even against a direct
-API call, not only in the interface.
+Staff writes are refused by row-level security on `roster_assignments` — every INSERT,
+UPDATE and DELETE is gated on `has_permission(auth.uid(), 'roster.edit')` — so the block
+holds even against a direct API call, not only in the interface.
+
+Other changes since the first build, now reflected in the staff and manager decks:
+
+- Staff can raise **leave** or **"Get paid instead"** only; shift change and swap were removed.
+  Sick leave needs a certificate photo; annual leave and holidays wait for probation to end.
+- Approval is two-step: the manager reviews, an owner approves. Approved leave writes itself
+  onto the roster; paid leave and holidays can no longer be typed into a cell.
+- The roster builder has no Print, CSV, Clear week or Delete week buttons. CSV lives on
+  Monthly and Reports. Only one of Publish / Lock / Unlock shows at a time.
+- The menu is grouped (Roster → Roster, Monthly, Shifts, Requests, Approvals, Staff), and the
+  staff phone tabs are Home · Roster · Wastage · Requests · Recipes · Profile.
+- The outlet "Mall" is now "Al Ghurair Center"; the other three outlets are hidden.
+
+The owner's sign-in deck (`login.py`) was **not** rebuilt: seven of its nine printed
+passwords have since been changed by their owners, so a rebuild needs current values and
+its password-status slides need rewriting first.
 
 ## A stale setting worth deleting
 
